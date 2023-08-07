@@ -1,67 +1,81 @@
+# InVADo: Interactive Visual Analysis of Molecular Docking Data
 
-![](logo.png)  
-[![Build Status Travis](https://travis-ci.com/UniStuttgart-VISUS/megamol.svg?branch=master)](https://travis-ci.com/UniStuttgart-VISUS/megamol)
-[![Build status](https://ci.appveyor.com/api/projects/status/jrtnh313libyy3vj/branch/master?svg=true)](https://ci.appveyor.com/project/megamolservice/megamol/branch/master)
+![](InVADo.png)
 
+# based on MegaMol
 
-MegaMol is a visualization middleware used to visualize point-based molecular data sets. This software is developed within the ​Collaborative Research Center 716, subproject ​D.3 at the ​[Visualization Research Center (VISUS)](https://www.visus.uni-stuttgart.de/en) of the University of Stuttgart and at the ​Computer Graphics and Visualization Group of the TU Dresden.  
+### This repository includes MegaMol with InVADo contained in the prolint plugin.
 
-MegaMol succeeds ​MolCloud, which has been developed at the University of Stuttgart in order to visualize point-based data sets. MegaMol is written in C++, and uses an OpenGL as Rendering-API and GLSL-Shader. It supports the operating systems Microsoft Windows and Linux, each in 32-bit and 64-bit versions. In large parts, MegaMol is based on VISlib, a C++-class library for scientific visualization, which has also been developed at the University of Stuttgart. 
+### Install steps and additional data: https://github.com/MarcoSchaeferT/InVADo_setup
 
+### It contains the specific requirements and instructions to build and run InVADo.
+
+#### ACKNOWLEDGMENTS
+
+InVADo was partially funded by German Research Foundation (DFG), project No. 437702916. It was also supported by the Czech Ministry of Education (grants ESFRI RECETOX RI LM2018121, ESFRI ELIXIR CZ LM2018131, NPO Onco LX22NPO5102, e-INFRA LM2018140). Special thanks go to the expert from Loschmidt Laboratories, Masaryk University, Brno, for their participation in the evaluation and thorough and valuable feedback. We also thank Frank Böckler and his team from the Molecular Design and Pharmaceutical Biophysics group, University of Tübingen for providing task descriptions and feedback on the initial design of InVADo.
+
+---
+
+![](logo.png)
+
+MegaMol is a visualization middleware used to visualize point-based molecular data sets. This software is developed within the ​Collaborative Research Center 716, subproject ​D.3 at the ​[Visualization Research Center (VISUS)](https://www.visus.uni-stuttgart.de/en) of the University of Stuttgart and at the ​Computer Graphics and Visualization Group of the TU Dresden.
+
+MegaMol succeeds ​MolCloud, which has been developed at the University of Stuttgart in order to visualize point-based data sets. MegaMol is written in C++, and uses an OpenGL as Rendering-API and GLSL-Shader. It supports the operating systems Microsoft Windows and Linux, each in 32-bit and 64-bit versions. In large parts, MegaMol is based on VISlib, a C++-class library for scientific visualization, which has also been developed at the University of Stuttgart.
 
 ## Changelog
-​See [changelog](https://github.com/UniStuttgart-VISUS/megamol/wiki/Changelog) for newly available features in the current version of MegaMol. 
 
+​See [changelog](https://github.com/UniStuttgart-VISUS/megamol/wiki/Changelog) for newly available features in the current version of MegaMol.
 
 ## Building MegaMol
+
 ### Linux
-1. Clone the MegaMol repository
-2. Create a build folder
-3. Invoke `cmake` inside the build folder
-4. Execute `make` to build MegaMol
-5. Run `make install` to create your MegaMol installation
-6. Test Megamol with
+
+1.  Clone the MegaMol repository
+2.  Create a build folder
+3.  Invoke `cmake` inside the build folder
+4.  Execute `make` to build MegaMol
+5.  Run `make install` to create your MegaMol installation
+6.  Test Megamol with
 
         $ ./megamol.sh -p ../examples/testspheres.lua
 
-
 ### Windows
-1. Clone the MegaMol repository
-2. Use the cmake GUI to configure MegaMol
+
+1.  Clone the MegaMol repository
+2.  Use the cmake GUI to configure MegaMol
     1. The configuration creates a `sln` file inside the build folder
-3. Open the `sln` file with *Visual Studio*
-4. Use the `ALL_BUILD` target to build MegaMol
-5. Use the `INSTALL` target to create your MegaMol installation
-6. Test Megamol with
+3.  Open the `sln` file with _Visual Studio_
+4.  Use the `ALL_BUILD` target to build MegaMol
+5.  Use the `INSTALL` target to create your MegaMol installation
+6.  Test Megamol with
 
         > mmconsole.exe -p ..\examples\testspheres.lua
 
-
 ## MegaMol Configurator
-MegaMol offers a configurator GUI (C#) that runs with .Net Framework 4.
-It runs also on Linux with Mono 3.2.8 (except for the analysis function and indirect-start functions).  
 
+MegaMol offers a configurator GUI (C#) that runs with .Net Framework 4.
+It runs also on Linux with Mono 3.2.8 (except for the analysis function and indirect-start functions).
 
 ## How to use MegaMol
+
 For a detailed description have a look at the [manual](docs/manual.md).
 
-
 ## Using the plugin template
+
 1. Copy the template folder
 2. Rename the copied folder to the intended plugin name
 3. Execute the instawiz.pl script inside the new folder
-    1. The script detects the plugin name
-    2. Autogenerate the GUID
+   1. The script detects the plugin name
+   2. Autogenerate the GUID
 4. Remove instawiz.pl
 5. Add libraries/dependencies to `CMakeLists.txt` (optional)
 6. Implement the content of your plugin
 7. Write a `Readme.md` for your plugin (mandatory)
 8. Add the folder to your local git
 
-
 ## Citing MegaMol
-Please use one of the following methods to reference the MegaMol project.
 
+Please use one of the following methods to reference the MegaMol project.
 
 **MegaMol – A Comprehensive Prototyping Framework for Visualizations**  
 P. Gralka, M. Becher, M. Braun, F. Frieß, C. Müller, T. Rau, K. Schatz, C. Schulz, M. Krone, G. Reina, T. Ertl  
@@ -91,7 +105,9 @@ doi: 10.1140/epjst/e2019-800167-5
         doi={10.1140/epjst/e2019-800167-5},
         url={https://doi.org/10.1140/epjst/e2019-800167-5}
     }
+
 #
+
 **MegaMol – A Prototyping Framework for Particle-based Visualization**  
 S. Grottel, M. Krone, C. Müller, G. Reina, T. Ertl  
 Visualization and Computer Graphics, IEEE Transactions on, vol.21, no.2, pp. 201--214, Feb. 2015  
@@ -110,7 +126,9 @@ doi: 10.1109/TVCG.2014.2350479
       doi={10.1109/TVCG.2014.2350479},
       ISSN={1077-2626}
     }
+
 #
+
 **Coherent Culling and Shading for Large Molecular Dynamics Visualization**  
 S. Grottel, G. Reina, C. Dachsbacher, T. Ertl  
 Computer Graphics Forum (Proceedings of EUROVIS 2010), 29(3):953 - 962, 2010
@@ -125,7 +143,9 @@ Computer Graphics Forum (Proceedings of EUROVIS 2010), 29(3):953 - 962, 2010
       volume = {{29}},
       number = {{3}}
     }
+
 #
+
 **Optimized Data Transfer for Time-dependent, GPU-based Glyphs**  
 S. Grottel, G. Reina, T. Ertl  
 In Proceedings of IEEE Pacific Visualization Symposium 2009: 65 - 72, 2009
@@ -140,6 +160,7 @@ In Proceedings of IEEE Pacific Visualization Symposium 2009: 65 - 72, 2009
     }
 
 #
+
 **MegaMol™ project website**  
 [https://megamol.org](https://megamol.org)
 
