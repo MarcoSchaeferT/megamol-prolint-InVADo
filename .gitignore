@@ -43,3 +43,5 @@ plugins/prolint/server/geckodriver.exe
 plugins/prolint/checkmol_linux
 plugins/prolint/server/testData
 geckodriver.log
+plugins/prolint/server/vue_app/InVADo_setup/
+plugins/prolint/server/geckodriver.zip

@@ -21,7 +21,26 @@ if(!Python3_FOUND)
 endif()
 
 execute_process(COMMAND pip install -r ${CMAKE_CURRENT_SOURCE_DIR}\\requirements.txt)
-execute_process(COMMAND CMD /c ${CMAKE_CURRENT_SOURCE_DIR}\\get_InVADo_InstallData.cmd)
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup)
+else()
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && git clone https://github.com/MarcoSchaeferT/InVADo_setup.git)
+	
+	execute_process(COMMAND CMD /c curl -L https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.4/nvidiaProfileInspector.zip  --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings\\Nprofile.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings && tar -xf Nprofile.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings && del Nprofile.zip)
+	
+	execute_process(COMMAND CMD /c curl -L https://homepage.univie.ac.at/norbert.haider/download/chemistry/checkmol/bin/checkmol-latest-win32.zip  --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\checkmol.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup && tar -xf checkmol.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup && del checkmol.zip)
+	
+	execute_process(COMMAND CMD /c curl -L https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-win64.zip --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server\\geckodriver.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server && tar -xf geckodriver.zip)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server && del geckodriver.zip)
+	
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && xcopy InVADo_setup\\checkmol.exe  /H /C /I /Y)
+	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && xcopy InVADo_setup\\server server /E /H /C /I /Y)
+endif()
 
 
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
