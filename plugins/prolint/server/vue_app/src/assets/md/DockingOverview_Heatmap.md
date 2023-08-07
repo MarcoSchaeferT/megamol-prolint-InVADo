@@ -1,0 +1,6 @@
+The **HEATMAP-tab** is an additional overview of the docking results.
+It aims to present all docking results in a color-coded, easy-to-interpret way. The \*_segmented heatmap_ allows the user to browse and to explore the ligands located on the y-axis. They are drawn against the clusters/binding sites on the x-axis.
+
+If a ligand has multiple poses that are docked in the same binding site the corresponding rectangle of the heatmap is divided into **multiple segments**. Each row can be seen as a kind of docking profile, that helps to identify, e.g., overall good binders. This plot is also scrollable and has a color legend at the top together with two sliders controlling the integration of _noise binding poses_ and the _score range_. Latter means, that the _inferno color map_ is applied to the _min_ to the _max_ score found in docking results or that the minimum will be set to zero (wider score range).
+
+The rectangles and their **segments** are drawn with the corresponding color concerning the scores. It helps to directly see, which ligands docked in many binding sites and which of the poses reached higher scores. A tooltip complements it with information about the _ZINC name_, the _clusterID_, the _ligandID_ and the _modelID_, which is also used for selection operations if a segment is clicked (affecting all other views).

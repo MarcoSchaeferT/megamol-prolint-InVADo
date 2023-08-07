@@ -1,0 +1,12 @@
+After a cluster from the **Docking Overview** is chosen and a ligand of interest is selected in the **Statistics View** InVADo provides information about the ligand and its individual models/poses in the **Ligand View**.
+
+It presents ligand-specific data as a scrollable table and enables the user to browse the model properties and to compare and identify ligands with the highest ligand efficiency or certain interaction types. The table has the same sorting options as described for **Statistics View**. The **model table** comprises the different scores/energies, the ligand efficiencies and also the cluster assignment of the individual poses. Rows with poses of the currently selected cluster are highlighted via the background color. There are three highlight colors:
+
+- (🟦): ligand model is part of a selected cluster
+- (🟧): how blue and additional contains selected functional groups
+- (🟩): is selected but neither "selected cluster" nor "selected functional groups" applies
+
+\
+Furthermore, the information about the ligand is enriched with interaction types present between it and the protein and also with its functional groups. Each type is shown as a colored circle with a fixed location. If interaction type is present the circle gets a certain color otherwise it is drawn white. The interaction types are determined using <a href="https://plip-tool.biotec.tu-dresden.de/plip-web/plip/index" target="_blank">PLIP</a>. We integrated hydrogen bonds, halogen bonds, hydrophobic interactions, metal complexes, π-cation interactions, π-stacks and salt bridges into InVADo. A click at the camera symbol of a row will show a pre-rendered image of the protein with the selected pose of the ligand and a visualization of the mentioned interaction types. The image can be closed with a second click on the same symbol or at the close symbol.
+
+Concerning the functional groups, they are presented as a scrollable _treeview_ on the right side of the **model table**. It shows typical chemical groups which the ligand is built from. A click on a functional group shows a figure with the structural formula of this specific group. The _treeview_ is very similar to the larger _treeview_ of **Functional Groups View** with the difference that the latter is a summary of all ligands, that belong to the currently selected cluster with some additional features. In contrast, the former _treeview_ is ligand-specific. Because of the high similarity, the detailed description of the _treeview_ can be taken from **Functional Groups View**.

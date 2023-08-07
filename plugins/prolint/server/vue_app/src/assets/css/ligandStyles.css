@@ -1,0 +1,63 @@
+h1 {
+  font: 14pt Arial;
+  color: black;
+  font-weight: bold;
+}
+
+p {
+  font: 12pt Arial;
+  color: black;
+}
+
+.xlabel {
+  font: 10pt Arial;
+}
+
+.ylabel {
+  font: 10pt Arial;
+}
+
+.plotTitle {
+  font: 12pt Arial;
+}
+
+/* https://bl.ocks.org/d3noob/a22c42db65eb00d4e369 */
+#tooltipLigand {
+  visibility: hidden;
+  position: absolute;
+  text-align: left;
+  width: auto;
+  height: auto;
+  padding: 5px;
+  font: 12px Arial;
+  background: lightsteelblue;
+  border-radius: 8px;
+}
+
+#scroll-wrapper-lig {
+  overflow-y: scroll;
+  white-space: nowrap;
+  max-height: 20vh;
+  scrollbar-width: thin;
+}
+
+#scroll-wrappper-lig::-webkit-scrollbar {
+  width: 5px;
+}
+
+.scrollableStyle_modelTable .v-data-table__wrapper {
+  height: calc(40vh - 150px) !important;
+  scrollbar-width: thin;
+  overflow-y: scroll;
+}
+
+#scrollableStyle_ligandTreeView {
+  max-height: calc(40vh - 150px);
+  overflow-y: scroll;
+  scrollbar-width: thin;
+}
+
+#smallMult {
+  display: block;
+  max-width: 800px;
+}

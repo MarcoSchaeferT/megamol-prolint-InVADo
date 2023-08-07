@@ -1,0 +1,1357 @@
+﻿/*
+ * SESTrilaterationCUDARenderer.cpp
+ *
+ * Copyright (C) 2019 by Universitaet Tuebingen (BDVA).
+ * All rights reserved.
+ */
+
+#include "stdafx.h"
+
+#define _USE_MATH_DEFINES 1
+#define mem_manage 1
+#define NUM_THREADS 256
+
+#include "vislib/graphics/gl/IncludeAllGL.h"
+
+#include <GL/glu.h>
+#include <omp.h>
+#include "SESTrilaterationCUDARenderer.h"
+#include "mmcore/CoreInstance.h"
+#include "mmcore/param/BoolParam.h"
+#include "mmcore/param/EnumParam.h"
+#include "mmcore/param/FloatParam.h"
+#include "mmcore/param/IntParam.h"
+#include "mmcore/param/StringParam.h"
+#include "mmcore/utility/ColourParser.h"
+#include "mmcore/utility/ShaderSourceFactory.h"
+#include "vislib/OutOfRangeException.h"
+#include "vislib/String.h"
+#include "vislib/StringConverter.h"
+#include "vislib/Trace.h"
+#include "vislib/assert.h"
+#include "vislib/graphics/gl/AbstractOpenGLShader.h"
+#include "vislib/graphics/gl/ShaderSource.h"
+#include "vislib/math/Matrix.h"
+#include "vislib/math/Quaternion.h"
+#include "mmcore/utility/sys/ASCIIFileBuffer.h"
+
+#include <Windows.h>
+
+#ifdef TEST
+
+#    include <fstream>
+#    include <iostream>
+#    include <time.h>
+clock_t tStart = clock();
+
+#endif
+
+#include "mmcore/CoreInstance.h"
+#include "vislib/graphics/gl/ShaderSource.h"
+
+#include <cuda_gl_interop.h>
+
+
+#define CHECK_FOR_OGL_ERROR()                                                                                          \
+    do {                                                                                                               \
+        GLenum err;                                                                                                    \
+        err = glGetError();                                                                                            \
+        if (err != GL_NO_ERROR) {                                                                                      \
+            fprintf(stderr, "%s(%d) glError: %s\n", __FILE__, __LINE__, gluErrorString(err));                          \
+        }                                                                                                              \
+    } while (0)
+
+using namespace megamol;
+using namespace megamol::core;
+using namespace megamol::prolint;
+using namespace megamol::protein_calls;
+
+
+const GLuint probePosSSBObindingPoint = 2;
+const GLuint atomPosSSBObindingPoint = 3;
+const GLuint atomColorTableSSBObindingPoint = 4;
+const GLuint intersectionsSSBObindingPoint = 5;
+const GLuint filtered_spheresComb3SSBObindingPoint = 6;
+const GLuint torusAxesSSBObindingPoint = 7;
+const GLuint atomPosIdxSSBObindingPoint = 8;
+
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::SESTrilaterationCUDARenderer (CTOR)
+ */
+
+SESTrilaterationCUDARenderer::SESTrilaterationCUDARenderer(void)
+    : Renderer3DModule_2()
+    , molDataCallerSlot("getData", "Connects the molecule rendering with molecule data storage")
+    , bsDataCallerSlot("getBindingSites", "Connects the molecule rendering with binding site data storage")
+    , renderModeParam("renderMode", "The rendering mode.")
+    , stickRadiusParam("stickRadius", "The radius for stick rendering")
+    , probeRadiusParam("probeRadius", "The probe radius for SAS rendering")
+    , colorTableFileParam("color::colorTableFilename", "The filename of the color table.")
+    , coloringModeParam0("color::coloringMode0", "The first coloring mode.")
+    , coloringModeParam1("color::coloringMode1", "The second coloring mode.")
+    , cmWeightParam("color::colorWeighting", "The weighting of the two coloring modes.")
+    , minGradColorParam("color::minGradColor", "The color for the minimum value for gradient coloring")
+    , midGradColorParam("color::midGradColor", "The color for the middle value for gradient coloring")
+    , maxGradColorParam("color::maxGradColor", "The color for the maximum value for gradient coloring")
+    , molIdxListParam("molIdxList", "The list of molecule indices for RS computation:")
+    , specialColorParam("color::specialColor", "The color for the specified molecules")
+    //, debugNeighbors("DEBUG NEIGHBORS", "Index of the spherical triangle for which the neighbors are rendered")
+    , gridsize(0)
+    , atomCnt(0)
+    , d_intersectionsSize(0)
+    , d_filtered_IntersectionsSize(0)
+    , probeRad(0)
+    , d_3atomComboSize(0)
+    , d_filtered_dim(NULL)
+    , h_filtered_dim(0)
+    , run_number(0)
+    , d_torusAxes(NULL)
+    , d_atomicIdx(NULL)
+    , lastTimestamp(-1.0f)
+    , gl_intersecting_neighbours(0)
+    , posArraySize(0)
+	, uploadColors(true) {
+    this->molDataCallerSlot.SetCompatibleCall<MolecularDataCallDescription>();
+    this->MakeSlotAvailable(&this->molDataCallerSlot);
+    this->bsDataCallerSlot.SetCompatibleCall<BindingSiteCallDescription>();
+    this->MakeSlotAvailable(&this->bsDataCallerSlot);
+
+
+    // rendering mode
+    this->currentRenderMode = SES_TRILATERATION;
+    // this->currentRenderMode = STICK;
+    // this->currentRenderMode = BALL_AND_STICK;
+    // this->currentRenderMode = SPACEFILLING;
+    // this->currentRenderMode = SAS;
+    param::EnumParam* rm = new param::EnumParam(int(this->currentRenderMode));
+
+    rm->SetTypePair(SES_TRILATERATION, "SES_Trilateration");
+
+    this->renderModeParam << rm;
+    this->MakeSlotAvailable(&this->renderModeParam);
+
+    // molecular indices list param
+    this->molIdxList.Clear();
+    this->molIdxListParam.SetParameter(new param::StringParam(""));
+    this->MakeSlotAvailable(&this->molIdxListParam);
+
+    // ----- color setup -----
+
+    // fill color table with default values and set the filename param
+    this->stickRadiusParam.SetParameter(new param::FloatParam(0.3f, 0.0f));
+    this->MakeSlotAvailable(&this->stickRadiusParam);
+
+    // fill color table with default values and set the filename param
+    this->probeRadiusParam.SetParameter(new param::FloatParam(1.4f));
+    this->MakeSlotAvailable(&this->probeRadiusParam);
+
+    // fill color table with default values and set the filename param
+    vislib::StringA filename("colors.txt");
+    protein::Color::ReadColorTableFromFile(filename, this->colorLookupTable);
+    this->colorTableFileParam.SetParameter(new param::StringParam(A2T(filename)));
+    this->MakeSlotAvailable(&this->colorTableFileParam);
+
+    // coloring modes
+    this->currentColoringMode0 = protein::Color::CHAIN;
+    this->currentColoringMode1 = protein::Color::ELEMENT;
+    param::EnumParam* cm0 = new param::EnumParam(int(this->currentColoringMode0));
+    param::EnumParam* cm1 = new param::EnumParam(int(this->currentColoringMode1));
+    MolecularDataCall* mol = new MolecularDataCall();
+    BindingSiteCall* bs = new BindingSiteCall();
+    unsigned int cCnt;
+    protein::Color::ColoringMode cMode;
+    for (cCnt = 0; cCnt < protein::Color::GetNumOfColoringModes(mol, bs); ++cCnt) {
+        cMode = protein::Color::GetModeByIndex(mol, bs, cCnt);
+        cm0->SetTypePair(cMode, protein::Color::GetName(cMode).c_str());
+        cm1->SetTypePair(cMode, protein::Color::GetName(cMode).c_str());
+    }
+    delete mol;
+    delete bs;
+    this->coloringModeParam0 << cm0;
+    this->coloringModeParam1 << cm1;
+    this->MakeSlotAvailable(&this->coloringModeParam0);
+    this->MakeSlotAvailable(&this->coloringModeParam1);
+
+    // Color weighting parameter
+    this->cmWeightParam.SetParameter(new param::FloatParam(0.5f, 0.0f, 1.0f));
+    this->MakeSlotAvailable(&this->cmWeightParam);
+
+    // the color for the minimum value (gradient coloring
+    this->minGradColorParam.SetParameter(new param::StringParam("#146496"));
+    this->MakeSlotAvailable(&this->minGradColorParam);
+
+    // the color for the middle value (gradient coloring
+    this->midGradColorParam.SetParameter(new param::StringParam("#f0f0f0"));
+    this->MakeSlotAvailable(&this->midGradColorParam);
+
+    // the color for the maximum value (gradient coloring
+    this->maxGradColorParam.SetParameter(new param::StringParam("#ae3b32"));
+    this->MakeSlotAvailable(&this->maxGradColorParam);
+
+    // make the rainbow color table
+    protein::Color::MakeRainbowColorTable(100, this->rainbowColors);
+
+    // the color for the maximum value (gradient coloring
+    this->specialColorParam.SetParameter(new param::StringParam("#228B22"));
+    this->MakeSlotAvailable(&this->specialColorParam);
+
+    // DEBUG
+    // this->debugNeighbors.SetParameter(new param::IntParam(0, 0));
+    // this->MakeSlotAvailable(&this->debugNeighbors);
+}
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::~SESTrilaterationCUDARenderer (DTOR)
+ */
+SESTrilaterationCUDARenderer::~SESTrilaterationCUDARenderer(void) { this->Release(); }
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::released_intersecting_neighbours
+ */
+void SESTrilaterationCUDARenderer::release(void) {
+    if (this->posArraySize > 0) {
+        delete[] this->pos0;
+        delete[] this->pos1;
+    }
+}
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::create
+ */
+bool SESTrilaterationCUDARenderer::create(void) {
+    if (!isExtAvailable("GL_ARB_vertex_program") || !ogl_IsVersionGEQ(2, 0)) return false;
+
+    if (!vislib::graphics::gl::GLSLShader::InitialiseExtensions()) return false;
+    if (!vislib::graphics::gl::GLSLTesselationShader::InitialiseExtensions()) return false;
+    using megamol::core::utility::log::Log;
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    glEnable(GL_VERTEX_PROGRAM_TWO_SIDE);
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE_ARB);
+
+    using namespace vislib::sys;
+    using namespace vislib::graphics::gl;
+
+    ShaderSource vertSrc;
+    ShaderSource fragSrc;
+    ShaderSource geomSrc;
+
+    // Load sphere shader
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("prolint::ses::sphereVertex", vertSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for sphere shader");
+        return false;
+    }
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("prolint::ses::sphereFragment", fragSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for sphere shader");
+        return false;
+    }
+    try {
+        if (!this->sphereShader.Create(vertSrc.Code(), vertSrc.Count(), fragSrc.Code(), fragSrc.Count())) {
+            throw vislib::Exception("Generic creation failure", __FILE__, __LINE__);
+        }
+    } catch (vislib::Exception e) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to create sphere shader: %s\n", e.GetMsgA());
+        return false;
+    }
+
+    // Load spherical triangle shader
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource(
+            "prolint::ses::sphericaltriangleVertex", vertSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for spherical triangle shader");
+        return false;
+    }
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource(
+            "prolint::ses::sphericaltriangleFragment", fragSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for spherial triangle shader");
+        return false;
+    }
+    try {
+        if (!this->sphericalTriangleShader.Create(vertSrc.Code(), vertSrc.Count(), fragSrc.Code(), fragSrc.Count())) {
+            throw vislib::Exception("Generic creation failure", __FILE__, __LINE__);
+        }
+    } catch (vislib::Exception e) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to create spherical triangle shader: %s\n", e.GetMsgA());
+        return false;
+    }
+
+    // Load torus shader
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("prolint::ses::torusVertex", vertSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for torus shader");
+        return false;
+    }
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("prolint::ses::torusFragment", fragSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for torus shader");
+        return false;
+    }
+    try {
+        if (!this->torusShader.Create(vertSrc.Code(), vertSrc.Count(), fragSrc.Code(), fragSrc.Count())) {
+            throw vislib::Exception("Generic creation failure", __FILE__, __LINE__);
+        }
+    } catch (vislib::Exception e) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to create torus shader: %s\n", e.GetMsgA());
+        return false;
+    }
+
+    // Load cylinder shader
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("protein::std::cylinderVertex", vertSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for cylinder shader");
+        return false;
+    }
+    if (!this->GetCoreInstance()->ShaderSourceFactory().MakeShaderSource("protein::std::cylinderFragment", fragSrc)) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to load vertex shader source for cylinder shader");
+        return false;
+    }
+    try {
+        if (!this->cylinderShader.Create(vertSrc.Code(), vertSrc.Count(), fragSrc.Code(), fragSrc.Count())) {
+            throw vislib::Exception("Generic creation failure", __FILE__, __LINE__);
+        }
+    } catch (vislib::Exception e) {
+        Log::DefaultLog.WriteMsg(Log::LEVEL_ERROR, "Unable to create cylinder shader: %s\n", e.GetMsgA());
+        return false;
+    }
+
+    return true;
+}
+
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::GetExtents
+ */
+bool SESTrilaterationCUDARenderer::GetExtents(core::view::CallRender3D_2& call) {
+    MolecularDataCall* mol = this->molDataCallerSlot.CallAs<MolecularDataCall>();
+    if (mol == NULL) return false;
+    if (!(*mol)(MolecularDataCall::CallForGetExtent)) return false;
+
+
+	call.AccessBoundingBoxes().SetBoundingBox(mol->AccessBoundingBoxes().ObjectSpaceBBox());
+	call.AccessBoundingBoxes().SetClipBox(mol->AccessBoundingBoxes().ObjectSpaceClipBox());
+	call.SetTimeFramesCount(mol->FrameCount());
+
+    return true;
+}
+
+/**********************************************************************
+ * 'render'-functions
+ **********************************************************************/
+
+
+/*
+ * prolint::SESTrilaterationCUDARenderer::Render
+ */
+bool SESTrilaterationCUDARenderer::Render(core::view::CallRender3D_2& call) {
+
+	view::Camera_2 cam;
+	call.GetCamera(cam);
+
+    float callTime = call.Time();
+
+    // get pointer to MolecularDataCall
+    MolecularDataCall* mol = this->molDataCallerSlot.CallAs<MolecularDataCall>();
+    if (mol == NULL) return false;
+
+    // get pointer to BindingSiteCall
+    BindingSiteCall* bs = this->bsDataCallerSlot.CallAs<BindingSiteCall>();
+    if (bs) {
+        (*bs)(BindingSiteCall::CallForGetData);
+    }
+
+    // set call time
+    mol->SetCalltime(callTime);
+    // set frame ID and call data
+    mol->SetFrameID(static_cast<int>(callTime));
+
+    if (!(*mol)(MolecularDataCall::CallForGetData)) return false;
+    // check if atom count is zero
+    if (mol->AtomCount() == 0) return true;
+    // get positions of the first frame
+    if (this->posArraySize < mol->AtomCount()) {
+        if (this->posArraySize > 0) {
+            delete[] this->pos0;
+            delete[] this->pos1;
+        }
+        pos0 = new float[mol->AtomCount() * 3];
+        pos1 = new float[mol->AtomCount() * 3];
+        this->posArraySize = mol->AtomCount();
+    }
+    memcpy(pos0, mol->AtomPositions(), mol->AtomCount() * 3 * sizeof(float));
+
+    // set next frame ID and get positions of the second frame
+    if ((static_cast<int>(callTime) + 1) < int(mol->FrameCount()))
+        mol->SetFrameID(static_cast<int>(callTime) + 1);
+    else
+        mol->SetFrameID(static_cast<int>(callTime));
+    // return false if calling for data fails
+    if (!(*mol)(MolecularDataCall::CallForGetData)) {
+        if (this->posArraySize > 0) {
+            delete[] this->pos0;
+            delete[] this->pos1;
+        }
+        this->posArraySize = 0;
+        return false;
+    }
+    // time steps must have the same number of atoms
+    if (this->posArraySize != mol->AtomCount()) {
+        if (this->posArraySize > 0) {
+            delete[] this->pos0;
+            delete[] this->pos1;
+        }
+        this->posArraySize = 0;
+        return false;
+    }
+    memcpy(pos1, mol->AtomPositions(), mol->AtomCount() * 3 * sizeof(float));
+
+
+    // ---------- update parameters ----------
+    this->UpdateParameters(mol, bs);
+
+    // recompute color table, if necessary
+    if (this->atomColorTableRGB.Count() / 3 < mol->AtomCount()) {
+        // Mix two coloring modes
+        protein::Color::MakeColorTable(mol, this->currentColoringMode0, this->currentColoringMode1,
+            cmWeightParam.Param<param::FloatParam>()->Value(),        // weight for the first cm
+            1.0f - cmWeightParam.Param<param::FloatParam>()->Value(), // weight for the second cm
+            this->atomColorTableRGB, this->colorLookupTable, this->rainbowColors,
+            this->minGradColorParam.Param<param::StringParam>()->Value(),
+            this->midGradColorParam.Param<param::StringParam>()->Value(),
+            this->maxGradColorParam.Param<param::StringParam>()->Value(), true);
+
+        // copy to RGBA array
+        this->atomColorTable.SetCount(4 * mol->AtomCount());
+#pragma omp parallel for
+        for (int i = 0; i < mol->AtomCount(); ++i) {
+            this->atomColorTable[4 * i + 0] = this->atomColorTableRGB[3 * i + 0];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[0]) / 255.0f;
+            this->atomColorTable[4 * i + 1] = this->atomColorTableRGB[3 * i + 1];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[1]) / 255.0f;
+            this->atomColorTable[4 * i + 2] = this->atomColorTableRGB[3 * i + 2];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[2]) / 255.0f;
+            this->atomColorTable[4 * i + 3] = 1.0f;
+            this->uploadColors = true;
+        }
+    }
+
+    // interpolate atom positions between frames
+    posInter.SetCount(mol->AtomCount() * 4);
+    float inter = callTime - static_cast<float>(static_cast<int>(callTime));
+    float threshold = vislib::math::Min(mol->AccessBoundingBoxes().ObjectSpaceBBox().Width(),
+                          vislib::math::Min(mol->AccessBoundingBoxes().ObjectSpaceBBox().Height(),
+                              mol->AccessBoundingBoxes().ObjectSpaceBBox().Depth())) *
+                      0.75f;
+    int cnt;
+#pragma omp parallel for
+    for (cnt = 0; cnt < int(mol->AtomCount()); ++cnt) {
+        if (std::sqrt(std::pow(pos0[3 * cnt + 0] - pos1[3 * cnt + 0], 2) +
+                      std::pow(pos0[3 * cnt + 1] - pos1[3 * cnt + 1], 2) +
+                      std::pow(pos0[3 * cnt + 2] - pos1[3 * cnt + 2], 2)) < threshold) {
+            posInter[4 * cnt + 0] = (1.0f - inter) * pos0[3 * cnt + 0] + inter * pos1[3 * cnt + 0];
+            posInter[4 * cnt + 1] = (1.0f - inter) * pos0[3 * cnt + 1] + inter * pos1[3 * cnt + 1];
+            posInter[4 * cnt + 2] = (1.0f - inter) * pos0[3 * cnt + 2] + inter * pos1[3 * cnt + 2];
+        } else if (inter < 0.5f) {
+            posInter[4 * cnt + 0] = pos0[3 * cnt + 0];
+            posInter[4 * cnt + 1] = pos0[3 * cnt + 1];
+            posInter[4 * cnt + 2] = pos0[3 * cnt + 2];
+        } else {
+            posInter[4 * cnt + 0] = pos1[3 * cnt + 0];
+            posInter[4 * cnt + 1] = pos1[3 * cnt + 1];
+            posInter[4 * cnt + 2] = pos1[3 * cnt + 2];
+        }
+        posInter[4 * cnt + 3] = mol->AtomTypes()[mol->AtomTypeIndices()[cnt]].Radius();
+    }
+
+  
+
+    // ---------- render ----------
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    glEnable(GL_VERTEX_PROGRAM_TWO_SIDE);
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE_ARB);
+
+    // render data using the current rendering mode
+    if (this->currentRenderMode == SES_TRILATERATION) {
+        this->RenderSES_Trilateration(mol, posInter.PeekElements(), cam);
+    }
+
+    // unlock the current frame
+    mol->Unlock();
+
+    return true;
+}
+
+
+/*
+ * Render the molecular data in SES Trilateration mode.
+ */
+void SESTrilaterationCUDARenderer::RenderSES_Trilateration(MolecularDataCall* mol, const float* atomPos, view::Camera_2 &cam) {
+
+    cudaError_t err;
+
+    /*Marco...--------------------------------------------------------------------------------------------*/
+#ifdef TEST
+
+    float time0, time1, time2, time3, time4, time5, time6, time7, time8;
+
+    cudaEvent_t start1, stop1;
+    cudaEventCreate(&start1);
+    cudaEventCreate(&stop1);
+    cudaEventRecord(start1, 0);
+    cudaDeviceSynchronize();
+#endif
+
+    // get minimum of every x,y,z coordinate for moving the origin of the grid to positive coordinates
+    auto bbox = mol->AccessBoundingBoxes().ObjectSpaceBBox();
+    bbox.EnforcePositiveSize();
+    float grid_x_max = bbox.GetRightTopBack().GetX();
+    float grid_x_min = bbox.GetLeftBottomFront().GetX();
+
+    float grid_y_max = bbox.GetRightTopBack().GetY();
+    float grid_y_min = bbox.GetLeftBottomFront().GetY();
+
+    float grid_z_min = bbox.GetRightTopBack().GetZ();
+    float grid_z_max = bbox.GetLeftBottomFront().GetZ();
+
+    float grid_x_range = grid_x_max - grid_x_min;
+    float grid_y_range = grid_y_max - grid_y_min;
+    float grid_z_range = grid_z_max - grid_z_min;
+
+
+    //***************************************************************************************************//
+    //***************************** GRID INSERT - ATOMS INTO BINS AND COUNT *****************************//
+    //***************************************************************************************************//
+    int atom_count = mol->AtomCount();
+
+    int threads = NUM_THREADS;
+    int blocks;
+    threads = std::min(threads, atom_count);
+    blocks = (atom_count % threads != 0) ? (atom_count / threads + 1) : (atom_count / threads);
+
+    // get gird-demension - considering grid_step_size
+
+
+    // move_origin_pdb: x,y,z for moving positions out of negative values (host)
+    move_origin_pdb.x = grid_x_min;
+    move_origin_pdb.y = grid_y_min;
+    move_origin_pdb.z = grid_z_min;
+
+    // TODO remove "|| true" -- this is just for testing the performance!
+    if (mol->Calltime() != this->lastTimestamp || mem_manage == 0 || 
+        this->probeRad != this->probeRadiusParam.Param<megamol::core::param::FloatParam>()->Value()) {
+
+        this->probeRad = this->probeRadiusParam.Param<megamol::core::param::FloatParam>()->Value();
+        this->grid_step_size = (this->probeRad * 2.0f + 4.0f); 
+
+        int3 griddims = {(int)ceilf(grid_x_range / grid_step_size), (int)ceilf(grid_y_range / grid_step_size),
+            (int)ceilf(grid_z_range / grid_step_size)};
+
+        this->lastTimestamp = mol->Calltime();
+
+        int tmpGridsize = griddims.x * griddims.y * griddims.z;
+
+        // (re-)allocate all arrays that depend in the number of grid cells
+        if (this->gridsize < tmpGridsize || mem_manage == 0) {
+            // d_grid: index+1 = atomID PDB; value=gridcell
+            if (this->gridsize > 0) {
+                cudaFree(d_grid);
+                cudaFree(this->d_cell_start_end);
+                cudaFree(this->d_intersecting_cell_start_end);
+            }
+
+            this->gridsize = static_cast<int>(static_cast<float>(tmpGridsize) * mem_reserve);
+
+            // update gridsize: number of cells
+            cudaMalloc((void**)&d_grid, this->gridsize * sizeof(int));
+            cudaMalloc((void**)&d_cell_start_end, this->gridsize * sizeof(int2));
+
+            // needed for finding intersecting intersections
+            cudaMalloc((void**)&d_intersecting_cell_start_end, (gridsize) * sizeof(int2));
+        }
+
+        // (re-)allocate all arrays that depend in the number of atoms
+        if (this->atomCnt < atom_count || mem_manage == 0) {
+            if (this->atomCnt > 0) {
+                // cudaFree(d_atomPos);
+                cudaGraphicsUnregisterResource(this->gl_atomPosResource);
+                glDeleteBuffers(1, &this->gl_atomPos);
+                cudaGraphicsUnregisterResource(this->gl_atomPosIdxResource);
+                glDeleteBuffers(1, &this->gl_atomPosIdx);
+                glDeleteBuffers(1, &this->gl_atomColorTable);
+                cudaFree(d_insert_grid);
+                cudaFree(this->d_sorted);
+                cudaFree(this->d_neighbours);
+                cudaFree(this->d_reduced_neighbours);
+                cudaFree(this->d_neighbourCounts);
+                cudaFree(this->d_reduced_neighbourCounts);
+                cudaFree(this->d_neighbour_combination_numbers);
+            }
+
+            // d_atompos: array of atom positions x,y,z * atom_count (device)
+            // cudaMalloc((void**)&d_atomPos, (atom_count) * sizeof(float4));
+            // d_insert_grid: index+1 = atomID PDB; x=gridcell, y= intern index of atoms in this cell
+            cudaMalloc((void**)&d_insert_grid, (atom_count) * sizeof(int2));
+
+            cudaMalloc((void**)&this->d_sorted, (atom_count) * sizeof(int2));
+            // d_neighbours: 1D array of neighbours; size 100 * atom_count; all neighbours of atomID=1 in 0-99; atomID=2
+            // 100-199...
+            cudaMalloc((void**)&this->d_neighbours, (atom_count * max_num_neigbors) * sizeof(unsigned int));
+            cudaMalloc((void**)&this->d_reduced_neighbours, (atom_count * max_num_neigbors) * sizeof(unsigned int));
+            // d_neighbourCounts: index+1 = atomID; value=number of neighbours; size=atom_count (device)
+            cudaMalloc((void**)&this->d_neighbourCounts, (atom_count) * sizeof(unsigned int));
+            cudaMalloc((void**)&this->d_reduced_neighbourCounts, (atom_count) * sizeof(unsigned int));
+
+            cudaMalloc((void**)&this->d_neighbour_combination_numbers, (atom_count) * sizeof(int));
+
+            this->atomCnt = atom_count;
+
+
+            // set SSBO for atomPos
+            if (!glIsBuffer(this->gl_atomPos)) {
+                glGenBuffers(1, &this->gl_atomPos);
+            }
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_atomPos);
+            CHECK_FOR_OGL_ERROR();
+            auto memsize = (this->atomCnt) * 4 * sizeof(float);
+            glBufferStorage(GL_SHADER_STORAGE_BUFFER, memsize, 0, GL_DYNAMIC_STORAGE_BIT);
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            CHECK_FOR_OGL_ERROR();
+
+            err = cudaGraphicsGLRegisterBuffer(
+                &this->gl_atomPosResource, this->gl_atomPos, cudaGraphicsRegisterFlagsWriteDiscard);
+
+
+#ifdef reduceAtoms
+            // set SSBO for atomPosIdx
+            if (!glIsBuffer(this->gl_atomPosIdx)) {
+                glGenBuffers(1, &this->gl_atomPosIdx);
+            }
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_atomPosIdx);
+            CHECK_FOR_OGL_ERROR();
+            auto memsize3 = (this->atomCnt) * sizeof(int);
+            glBufferStorage(GL_SHADER_STORAGE_BUFFER, memsize3, 0, GL_DYNAMIC_STORAGE_BIT);
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            CHECK_FOR_OGL_ERROR();
+
+            err = cudaGraphicsGLRegisterBuffer(
+                &this->gl_atomPosIdxResource, this->gl_atomPosIdx, cudaGraphicsRegisterFlagsWriteDiscard);
+#endif
+
+            // set SSBO for atomColorTable
+            if (!glIsBuffer(this->gl_atomColorTable)) {
+                glGenBuffers(1, &this->gl_atomColorTable);
+            }
+            CHECK_FOR_OGL_ERROR();
+        }
+
+        err = cudaGraphicsMapResources(1, &this->gl_atomPosResource, 0);
+        err = cudaGraphicsResourceGetMappedPointer(
+            (void**)(&this->d_atomPos), &this->gl_atomPosSize, this->gl_atomPosResource);
+
+#ifdef reduceAtoms
+        err = cudaGraphicsMapResources(1, &this->gl_atomPosIdxResource, 0);
+        err = cudaGraphicsResourceGetMappedPointer(
+            (void**)(&this->d_atomPosIdx), &this->gl_atomPosIdxSize, this->gl_atomPosIdxResource);
+#endif
+        cudaMemcpy(d_atomPos, atomPos, (atom_count) * sizeof(float4), cudaMemcpyHostToDevice);
+
+        cudaMemset(d_insert_grid, 0, (atom_count) * sizeof(int2)); // must be set to 0 because of using atomicAdd
+
+        // CUDA: insert atoms into bins and count atoms per bin (atomicAdd)
+        cudaMemset(d_grid, 0, tmpGridsize * sizeof(int));
+        gridInsertCuda(
+            blocks, threads, d_grid, d_insert_grid, d_atomPos, move_origin_pdb, griddims, atom_count, grid_step_size);
+
+#ifdef TEST
+        FILE* myfile;
+        int write = 0;
+        if ((double)(clock() - tStart) / CLOCKS_PER_SEC >= 20) write = 1;
+
+        if (write) {
+
+            myfile = fopen("prolint_time_measure.csv", "a");
+        }
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop1, 0);
+        cudaEventSynchronize(stop1);
+        cudaEventElapsedTime(&time1, start1, stop1);
+        if (write) {
+            fprintf(myfile, "GRID INSERT; %f \n", time1);
+        }
+        // printf("Time for GRID INSERT: \t\t %f ms\n", time1);
+
+        cudaEvent_t start2, stop2;
+        cudaEventCreate(&start2);
+        cudaEventCreate(&stop2);
+        cudaEventRecord(start2, 0);
+        cudaDeviceSynchronize();
+#endif
+
+        //*************************************************************************//
+        //***************************** COUNTING SORT *****************************//
+        //*************************************************************************//
+
+        // calculate Prefix Sum
+        ScanCuda(d_grid, d_grid + tmpGridsize, d_grid); // in-place scan
+
+        // TODO this seems to be unnecessary
+        cudaMemset(this->d_sorted, 0, (atom_count) * sizeof(int2));
+        // CUDA: counting sort on GPU
+        countingSortCuda(blocks, threads, d_insert_grid, this->d_sorted, atom_count, d_grid);
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop2, 0);
+        cudaEventSynchronize(stop2);
+        cudaEventElapsedTime(&time2, start2, stop2);
+        if (write) {
+            fprintf(myfile, "COUNTING SORT; %f \n", time2);
+        }
+
+        // printf("Time for COUNTING SORT: \t %f ms\n", time2);
+
+        cudaEvent_t start3, stop3;
+        cudaEventCreate(&start3);
+        cudaEventCreate(&stop3);
+        cudaEventRecord(start3, 0);
+        cudaDeviceSynchronize();
+
+#endif
+        //**********************************************************************//
+        //***************************** REINDEXING *****************************//
+        //**********************************************************************//
+
+        // CUDA reindexing on GPU (cell_start, cell_end)
+        cudaMemset(d_cell_start_end, 0, tmpGridsize * sizeof(int2));
+        reindexCuda(blocks, threads, d_sorted, d_cell_start_end, atom_count);
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop3, 0);
+        cudaEventSynchronize(stop3);
+        cudaEventElapsedTime(&time3, start3, stop3);
+        if (write) {
+            fprintf(myfile, "REINDEXING; %f \n", time3);
+        }
+
+        // printf("Time for REINDEXING: \t\t %f ms\n", time3);
+
+        cudaEvent_t start4, stop4;
+        cudaEventCreate(&start4);
+        cudaEventCreate(&stop4);
+        cudaEventRecord(start4, 0);
+        cudaDeviceSynchronize();
+
+#endif
+
+        //*****************************************************************************//
+        //***************************** NEIGHBOUR SEARCH ******************************//
+        //*****************************************************************************//
+
+        // CUDA: searching neighbours for each atom on GPU (cell_start, cell_end)
+        NeighbourSearchCuda(blocks, threads, d_atomPos, atom_count, move_origin_pdb, griddims, d_cell_start_end,
+            d_sorted, d_neighbours, d_reduced_neighbours, d_neighbourCounts, d_reduced_neighbourCounts, this->probeRad,
+            this->grid_step_size);
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop4, 0);
+        cudaEventSynchronize(stop4);
+        cudaEventElapsedTime(&time4, start4, stop4);
+        if (write) {
+            fprintf(myfile, "EIGBHOUR SERACH; %f \n", time4);
+        }
+        // printf("Time for NEIGBHOUR SERACH: \t %f ms\n", time4);
+
+        cudaEvent_t start5, stop5;
+        cudaEventCreate(&start5);
+        cudaEventCreate(&stop5);
+        cudaEventRecord(start5, 0);
+        cudaDeviceSynchronize();
+
+#endif
+
+        //*****************************************************************************//
+        //************************ CALC ALL 3 SPHERES COMBOS **************************//
+        //*****************************************************************************//
+
+        // CUDA: calculates all possible 3 atom cobination of the neighbours of an atom
+        prepare_Number_of_CombinationsCuda(blocks, threads, atom_count, d_reduced_neighbours, d_reduced_neighbourCounts,
+            d_neighbour_combination_numbers);
+
+        // calculate Prefix Sum
+        ScanCuda(d_neighbour_combination_numbers, d_neighbour_combination_numbers + atom_count,
+            d_neighbour_combination_numbers); // in-place scan
+
+        int number_of_3atomCombos = 0;
+        cudaMemcpy(&number_of_3atomCombos, d_neighbour_combination_numbers + atom_count - 1, sizeof(int),
+            cudaMemcpyDeviceToHost);
+
+        if (this->d_3atomComboSize < number_of_3atomCombos || mem_manage == 0) {
+            if (d_3atomComboSize > 0) {
+                cudaFree(this->d_SpheresComb3);
+            }
+            this->d_3atomComboSize = number_of_3atomCombos * mem_reserve;
+            cudaMalloc((void**)&d_SpheresComb3, this->d_3atomComboSize * sizeof(int3));
+        } 
+
+        calc_3spheresCombosCuda(blocks, threads, atom_count, d_reduced_neighbours, d_reduced_neighbourCounts,
+            d_neighbour_combination_numbers, d_SpheresComb3);
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop5, 0);
+        cudaEventSynchronize(stop5);
+        cudaEventElapsedTime(&time5, start5, stop5);
+        if (write) {
+            fprintf(myfile, "CALC ALL 3 SPHERES COMBOS; %f \n", time5);
+        }
+        // printf("Time for CALC ALL 3 SPHERES COMBOS: %f ms\n", time5);
+
+        cudaEvent_t start6, stop6;
+        cudaEventCreate(&start6);
+        cudaEventCreate(&stop6);
+        cudaEventRecord(start6, 0);
+        cudaDeviceSynchronize();
+#endif
+
+        //************************************************************************************//
+        //***************************** 3 SPHERES INTERSECTIONS ******************************//
+        //************************************************************************************//
+        threads = NUM_THREADS;
+        threads = std::min(threads, number_of_3atomCombos);
+        blocks = (number_of_3atomCombos % threads != 0) ? (number_of_3atomCombos / threads + 1)
+                                                        : (number_of_3atomCombos / threads);
+        h_filtered_dim = number_of_3atomCombos * 2;
+
+        //_intersections: stores all Intersections; index = S1 // index+1 = S2;  size=sum of all overlaps * 2
+        if (this->d_intersectionsSize < h_filtered_dim || mem_manage == 0) {
+            if (d_intersectionsSize > 0) {
+                cudaGraphicsUnregisterResource(this->gl_filtered_spheresComb3_resource);
+                glDeleteBuffers(1, &this->gl_filtered_spheresComb3);
+
+                cudaGraphicsUnregisterResource(this->gl_intersectionsResource);
+                glDeleteBuffers(1, &this->gl_intersections);
+            }
+
+            // Magic number - we just assume that less than one percent of the theoretical solutions actually exist
+            float precentage = 0.01f;
+
+            this->d_intersectionsSize = h_filtered_dim * mem_reserve;
+            this->d_intersectionMemSize = this->d_intersectionsSize * precentage;
+
+            // set SSBO for filtered_spheresComb3
+            if (!glIsBuffer(gl_filtered_spheresComb3)) {
+                glGenBuffers(1, &gl_filtered_spheresComb3);
+            }
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_filtered_spheresComb3);
+            CHECK_FOR_OGL_ERROR();
+            glBufferStorage(
+                GL_SHADER_STORAGE_BUFFER, this->d_intersectionMemSize * sizeof(int4), 0, GL_DYNAMIC_STORAGE_BIT);
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            CHECK_FOR_OGL_ERROR();
+
+            err = cudaGraphicsGLRegisterBuffer(
+                &this->gl_filtered_spheresComb3_resource, this->gl_filtered_spheresComb3, cudaGraphicsMapFlagsNone);
+
+
+            // set SSBO for intersections
+            if (!glIsBuffer(gl_intersections)) {
+                glGenBuffers(1, &gl_intersections);
+            }
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_intersections);
+            glBufferStorage(
+                GL_SHADER_STORAGE_BUFFER, this->d_intersectionMemSize * sizeof(float4), 0, GL_DYNAMIC_STORAGE_BIT);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+            err = cudaGraphicsGLRegisterBuffer(
+                &this->gl_intersectionsResource, this->gl_intersections, cudaGraphicsMapFlagsNone);
+        }
+        err = cudaGraphicsMapResources(1, &gl_filtered_spheresComb3_resource, 0);
+        err = cudaGraphicsResourceGetMappedPointer(
+            (void**)(&this->d_filtered_spheresComb3), &gl_intersectionsSize, gl_filtered_spheresComb3_resource);
+
+        err = cudaGraphicsMapResources(1, &gl_intersectionsResource, 0);
+        err = cudaGraphicsResourceGetMappedPointer(
+            (void**)(&this->d_intersections), &gl_intersectionsSize, gl_intersectionsResource);
+
+
+        // make sure atomicIdx is allocated and set it to zero
+        if (!this->d_atomicIdx) {
+            cudaMalloc((void**)&d_atomicIdx, sizeof(int));
+        }
+        cudaMemset(d_atomicIdx, 0, sizeof(int));
+
+        // CUDA: calculates Intersections of 3 Spheres if exists
+        check_3Spheres_OverlapCuda(blocks, threads, d_atomicIdx, d_SpheresComb3, d_atomPos, 1, d_neighbours,
+            d_neighbourCounts, number_of_3atomCombos, this->probeRad, this->d_intersectionMemSize, d_intersections,
+            this->d_filtered_spheresComb3, this->d_atomPosIdx);
+        // get number of combinations that were actually written
+        cudaMemcpy(&h_filtered_dim, d_atomicIdx, sizeof(int), cudaMemcpyDeviceToHost);
+        // check if all combinations were written
+        if (h_filtered_dim > this->d_intersectionMemSize) {
+            printf("ERROR: Could not write all combinations! %i < %i\n", this->d_intersectionMemSize, h_filtered_dim);
+            h_filtered_dim = this->d_intersectionMemSize;
+            // TODO: if this is the case, make "percentage" larger (iteratively until it is sufficient)
+        }
+
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop6, 0);
+        cudaEventSynchronize(stop6);
+        cudaEventElapsedTime(&time6, start6, stop6);
+        if (write) {
+            fprintf(myfile, "3 SPHERES INTERSECTIONS; %f \n", time6);
+        }
+        // printf("Time for 3 SPHERES INTERSECTIONS: %f ms\n", time6);
+        cudaDeviceSynchronize();
+
+        cudaEvent_t start7, stop7;
+        cudaEventCreate(&start7);
+        cudaEventCreate(&stop7);
+        cudaEventRecord(start7, 0);
+        cudaDeviceSynchronize();
+#endif
+
+        // resize host,device arrays, if necessary
+        if (this->d_filtered_IntersectionsSize < h_filtered_dim || mem_manage == 0) {
+            if (this->d_filtered_IntersectionsSize > 0) {
+                cudaGraphicsUnregisterResource(this->gl_intersecting_neighbours_resource);
+                glDeleteBuffers(1, &this->gl_intersecting_neighbours);
+
+                cudaGraphicsUnregisterResource(this->gl_torusAxesResource);
+                glDeleteBuffers(1, &this->gl_torusAxes);
+
+                // needed for finding intersecting intersections
+                cudaFree(this->d_intersection_insert_grid);
+                cudaFree(this->d_intersecting_sorted);
+                // cudaFree(this->d_intersecting_neighbours);
+                cudaFree(this->d_intersecting_neighbourCounts);
+            }
+
+            this->d_filtered_IntersectionsSize = h_filtered_dim * mem_reserve;
+
+            // needed for finding intersectiong intersections
+            cudaMalloc((void**)&this->d_intersection_insert_grid, (this->d_filtered_IntersectionsSize) * sizeof(int2));
+            cudaMalloc((void**)&this->d_intersecting_sorted, (this->d_filtered_IntersectionsSize) * sizeof(int2));
+            // cudaMalloc((void**)&this->d_intersecting_neighbours,
+            //    (this->d_filtered_IntersectionsSize * 50) * sizeof(unsigned int));
+            cudaMalloc((void**)&this->d_intersecting_neighbourCounts,
+                (this->d_filtered_IntersectionsSize) * sizeof(unsigned int));
+
+            // set SSBO for intersecting_neighbours
+            if (!glIsBuffer(this->gl_intersecting_neighbours)) {
+                glGenBuffers(1, &this->gl_intersecting_neighbours);
+            }
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_intersecting_neighbours);
+            CHECK_FOR_OGL_ERROR();
+            auto memsize = (this->d_filtered_IntersectionsSize * 50) * 4 * sizeof(float);
+            glBufferStorage(GL_SHADER_STORAGE_BUFFER, memsize, 0, GL_DYNAMIC_STORAGE_BIT);
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            CHECK_FOR_OGL_ERROR();
+
+            err = cudaGraphicsGLRegisterBuffer(&this->gl_intersecting_neighbours_resource,
+                this->gl_intersecting_neighbours, cudaGraphicsRegisterFlagsWriteDiscard);
+
+            // set SSBO for torusAxes
+            if (!glIsBuffer(this->gl_torusAxes)) {
+                glGenBuffers(1, &this->gl_torusAxes);
+            }
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_torusAxes);
+            CHECK_FOR_OGL_ERROR();
+            auto memsize2 = this->d_filtered_IntersectionsSize * 3 * sizeof(int2);
+            glBufferStorage(GL_SHADER_STORAGE_BUFFER, memsize2, 0, GL_DYNAMIC_STORAGE_BIT);
+            CHECK_FOR_OGL_ERROR();
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+            CHECK_FOR_OGL_ERROR();
+
+            err = cudaGraphicsGLRegisterBuffer(
+                &this->gl_torusAxesResource, this->gl_torusAxes, cudaGraphicsRegisterFlagsWriteDiscard);
+        }
+
+        err = cudaGraphicsMapResources(1, &this->gl_intersecting_neighbours_resource, 0);
+        err = cudaGraphicsResourceGetMappedPointer((void**)(&this->d_intersecting_neighbours),
+            &this->gl_intersecting_neighbours_size, this->gl_intersecting_neighbours_resource);
+
+        err = cudaGraphicsMapResources(1, &this->gl_torusAxesResource, 0);
+        err = cudaGraphicsResourceGetMappedPointer(
+            (void**)(&this->d_torusAxes), &this->gl_torusAxesSize, this->gl_torusAxesResource);
+
+
+        //********************************************************************************************//
+        //********************************* COMPUTE TORUS PARAMETERS *********************************//
+        //********************************************************************************************//
+        // CUDA: write all possible torus axes
+        threads = NUM_THREADS;
+        threads = std::min(threads, static_cast<int>(this->h_filtered_dim));
+        writeTorusAxesCUDA(blocks, threads, this->h_filtered_dim, this->d_filtered_spheresComb3, this->d_torusAxes);
+        // CUDA: get unique torus axes
+        this->numTorusAxes = this->h_filtered_dim * 3;
+        sortAndUniqueTorusAxesCUDA(numTorusAxes, this->d_torusAxes);
+        cudaDeviceSynchronize();
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop7, 0);
+        cudaEventSynchronize(stop7);
+        cudaEventElapsedTime(&time7, start7, stop7);
+        if (write) {
+            fprintf(myfile, "COMPUTE TORUS PARAMETER; %f \n", time7);
+        }
+        // printf("Time for COMPUTE TORUS PARAMETERS: %f ms\n", time7);
+        cudaDeviceSynchronize();
+
+        cudaEvent_t start8, stop8;
+        cudaEventCreate(&start8);
+        cudaEventCreate(&stop8);
+        cudaEventRecord(start8, 0);
+        cudaDeviceSynchronize();
+#endif
+
+
+        //********************************************************************************************//
+        //***************************** FIND INTERSECTING INTERSECTIONS ******************************//
+        //********************************************************************************************//
+        threads = NUM_THREADS;
+
+        threads = std::min(threads, h_filtered_dim);
+        blocks = (h_filtered_dim % threads != 0) ? (h_filtered_dim / threads + 1) : (h_filtered_dim / threads);
+
+        // sets d_grid to zero because it is earlier used and has values != 0
+        // d_grid is a counter for atoms per cell
+        cudaMemset(this->d_grid, 0, this->gridsize * sizeof(int));
+
+        //************************//
+        //*******GRID INSERT******->INTERSECTIONS
+        //************************//
+        gridInsertCuda(blocks, threads, d_grid, d_intersection_insert_grid, this->d_intersections, move_origin_pdb,
+            griddims, h_filtered_dim, grid_step_size);
+
+        //**************************//
+        //*******COUNTING SORT******->INTERSECTIONS
+        //**************************//
+
+        // calculate Prefix Sum
+        ScanCuda(d_grid, d_grid + tmpGridsize, d_grid); // in-place scan
+
+        // CUDA: counting sort on GPU
+        countingSortCuda(
+            blocks, threads, this->d_intersection_insert_grid, this->d_intersecting_sorted, h_filtered_dim, d_grid);
+
+        //************************//
+        //*******REINDEXING******->INTERSECTIONS
+        //************************//
+
+        // CUDA reindexing on GPU (cell_start, cell_end)
+        cudaMemset(this->d_intersecting_cell_start_end, 0, tmpGridsize * sizeof(int2));
+        reindexCuda(blocks, threads, this->d_intersecting_sorted, this->d_intersecting_cell_start_end, h_filtered_dim);
+
+        //******************************//
+        //*******NEIGBHBOUR SEARCH******->INTERSECTIONS
+        //******************************//
+        cudaMemset(this->d_intersecting_neighbours, 0, this->gl_intersecting_neighbours_size);
+
+        NeighbourSearch4f_intersectionsCuda(blocks, threads, this->d_intersections, h_filtered_dim, move_origin_pdb,
+            griddims, this->d_intersecting_cell_start_end, this->d_intersecting_sorted, this->d_intersecting_neighbours,
+            this->d_intersecting_neighbourCounts, this->probeRad, grid_step_size);
+
+        //#Result
+        //-> d_intersecting_neighbours
+        //-> d_intersecting_neighboursCounts
+
+#ifdef TEST
+        cudaDeviceSynchronize();
+        cudaEventRecord(stop8, 0);
+        cudaEventSynchronize(stop8);
+        cudaEventElapsedTime(&time8, start8, stop8);
+        if (write) {
+            fprintf(myfile, "FIND INTERSECTING INTERSECTIONS; %f \n", time8);
+        }
+        // printf("Time for FIND INTERSECTING INTERSECTIONS:\t\t %f ms\n", time8);
+#endif
+
+#ifdef TEST
+        time0 = time1 + time2 + time3 + time4 + time5 + time6 + time7 + time8;
+        if (write) {
+            fprintf(myfile, "Time for all; %f \n", time0);
+            fprintf(myfile, "Total atoms; %i \n", atomCnt);
+#    ifdef reduceAtoms
+            fprintf(myfile, "Exposed atoms; %i \n", size_AtomPosIdx);
+#    endif
+        }
+        // printf("Time for all: \t\t\t %f ms\n", time0);
+        cudaDeviceSynchronize();
+        // printf("\n\n--------------------------------------------------------------------------------------------\n");
+
+        if (write) {
+            fclose(myfile);
+            exit(0);
+        }
+
+
+#endif
+#ifdef reduceAtoms
+        size_AtomPosIdx = atomCnt;
+        SortAndUniqueAtomPosIdxCUDA(size_AtomPosIdx, this->d_atomPosIdx);
+        err = cudaGraphicsUnmapResources(1, &gl_atomPosIdxResource, 0);
+        // printf("Atoms: %i \t reduced: %i\n", atomCnt, size_AtomPosIdx);
+#endif
+
+        // BASIC ARRAYS -> atomPos and color
+        err = cudaGraphicsUnmapResources(1, &gl_atomPosResource, 0);
+
+
+        // for SPHERIC TRIANGLE RENDERER
+        err = cudaGraphicsUnmapResources(1, &gl_intersectionsResource, 0);
+        err = cudaGraphicsUnmapResources(1, &gl_intersecting_neighbours_resource, 0);
+        err = cudaGraphicsUnmapResources(1, &gl_filtered_spheresComb3_resource, 0);
+
+        // TROUS RENDERER
+        err = cudaGraphicsUnmapResources(1, &gl_torusAxesResource, 0);
+    }
+    //######################################################################################################################
+
+    //************************************************************************************//
+    //************************************ RENDERING *************************************//
+    //************************************************************************************//
+
+	cam_type::snapshot_type snapshot;
+	cam_type::matrix_type viewTemp, projTemp;
+
+	// Generate complete snapshot and calculate matrices
+	cam.calc_matrices(snapshot, viewTemp, projTemp, thecam::snapshot_content::all);
+
+	glm::mat4 view = viewTemp;
+	glm::mat4 proj = projTemp;
+	glm::mat4 MVinv = glm::inverse(view);
+	glm::mat4 MVP = proj * view;
+	glm::mat4 MVPinv = glm::inverse(MVP);
+	glm::mat4 MVPtransp = glm::transpose(MVP);
+
+	if (this->uploadColors) {
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->gl_atomColorTable);
+		CHECK_FOR_OGL_ERROR();
+        glBufferData(GL_SHADER_STORAGE_BUFFER, this->atomColorTable.Count() * sizeof(float),
+            this->atomColorTable.PeekElements(), GL_DYNAMIC_COPY);
+		CHECK_FOR_OGL_ERROR();
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		CHECK_FOR_OGL_ERROR();
+		this->uploadColors = false;
+	}
+
+    using namespace vislib::sys;
+    float fogStart = 0.5f;
+    float* clearColor = new float[4];
+    vislib::math::Vector<float, 3> fogCol(clearColor[0], clearColor[1], clearColor[2]);
+
+    // get viewpoint parameters for raycasting
+    float viewportStuff[4] = { 0.0f, 0.0f,
+		cam.resolution_gate().width(), cam.resolution_gate().height()};
+    if (viewportStuff[2] < 1.0f) viewportStuff[2] = 1.0f;
+    if (viewportStuff[3] < 1.0f) viewportStuff[3] = 1.0f;
+    viewportStuff[2] = 2.0f / viewportStuff[2];
+    viewportStuff[3] = 2.0f / viewportStuff[3];
+
+
+    //************************************************************************************//
+    //***************************** SPHERIC TRIANGLE RENDERER ****************************//
+    //************************************************************************************//
+
+#if 1 // sphericTriangle
+
+    this->sphericalTriangleShader.Enable(); 
+    // enable spherical triangle shader
+
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, clearColor);
+
+    glUniform4fvARB(this->sphericalTriangleShader.ParameterLocation("viewAttr"), 1, viewportStuff);
+    glUniform3fvARB(this->sphericalTriangleShader.ParameterLocation("camIn"), 1, glm::value_ptr( static_cast<glm::vec4>(snapshot.view_vector)));
+    glUniform3fvARB(
+        this->sphericalTriangleShader.ParameterLocation("camRight"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.right_vector)));
+    glUniform3fvARB(this->sphericalTriangleShader.ParameterLocation("camUp"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.up_vector)));
+    glUniform3fARB(this->sphericalTriangleShader.ParameterLocation("zValues"), fogStart, cam.near_clipping_plane(),
+        cam.far_clipping_plane());
+    glUniform3fARB(
+        this->sphericalTriangleShader.ParameterLocation("fogCol"), fogCol.GetX(), fogCol.GetY(), fogCol.GetZ());
+    // glUniform2fARB(sphericalTriangleShader.ParameterLocation("texOffset"), 1.0f /
+    // (float)singTexWidth[cntRS], 1.0f / (float)singTexHeight[cntRS]);
+
+    glUniform1fARB(this->sphericalTriangleShader.ParameterLocation("alpha"), 1.0f);
+	glUniformMatrix4fv(this->sphericalTriangleShader.ParameterLocation("MVP"), 1, false, glm::value_ptr(MVP));
+	glUniformMatrix4fv(this->sphericalTriangleShader.ParameterLocation("MVinv"), 1, false, glm::value_ptr(MVinv));
+	glUniformMatrix4fv(this->sphericalTriangleShader.ParameterLocation("MVPinv"), 1, false, glm::value_ptr(MVPinv));
+	glUniformMatrix4fv(this->sphericalTriangleShader.ParameterLocation("MVPtransp"), 1, false, glm::value_ptr(MVPtransp));
+
+    // set color to turquoise
+    glColor3f(0.0f, 0.75f, 1.0f);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, probePosSSBObindingPoint, this->gl_intersecting_neighbours);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, intersectionsSSBObindingPoint, this->gl_intersections);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomPosSSBObindingPoint, this->gl_atomPos);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, this->gl_atomColorTable);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, filtered_spheresComb3SSBObindingPoint, this->gl_filtered_spheresComb3);
+
+    glDrawArrays(GL_POINTS, 0, h_filtered_dim);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, 0);
+
+    this->sphericalTriangleShader.Disable();
+
+
+#endif
+
+
+    //************************************************************************************//
+    //********************************* SPHERE RENDERER **********************************//
+    //************************************************************************************//
+
+
+#if 1 // new sphere renderer
+
+    this->sphereShader.Enable();
+	
+    // set shader variables
+    glUniform4fvARB(this->sphereShader.ParameterLocation("viewAttr"), 1, viewportStuff);
+    glUniform3fvARB(this->sphereShader.ParameterLocation("camIn"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.view_vector)));
+    glUniform3fvARB(this->sphereShader.ParameterLocation("camRight"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.right_vector)));
+    glUniform3fvARB(this->sphereShader.ParameterLocation("camUp"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.up_vector)));
+
+	glUniform1fARB(this->sphereShader.ParameterLocation("alpha"), 1.0f);
+	glUniformMatrix4fv(this->sphereShader.ParameterLocation("MVP"), 1, false, glm::value_ptr(MVP));
+	glUniformMatrix4fv(this->sphereShader.ParameterLocation("MVinv"), 1, false, glm::value_ptr(MVinv));
+	glUniformMatrix4fv(this->sphereShader.ParameterLocation("MVPinv"), 1, false, glm::value_ptr(MVPinv));
+	glUniformMatrix4fv(this->sphereShader.ParameterLocation("MVPtransp"), 1, false, glm::value_ptr(MVPtransp));
+
+    // bind vertex and color SSBOs and draw them
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, this->gl_atomColorTable);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomPosSSBObindingPoint, this->gl_atomPos);
+    /*
+    #ifdef reduceAtoms
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomPosIdxSSBObindingPoint, this->gl_atomPosIdx);
+        atomCnt = size_AtomPosIdx;
+    #endif
+    */
+
+    glDrawArrays(GL_POINTS, 0, atomCnt);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, 0);
+
+    this->sphereShader.Disable();
+#endif
+
+    //************************************************************************************//
+    //********************************* TORUS RENDERER ***********************************//
+    //************************************************************************************//
+
+#if 1
+
+    this->torusShader.Enable();
+
+    glUniform4fvARB(this->torusShader.ParameterLocation("viewAttr"), 1, viewportStuff);
+	glUniform3fvARB(this->torusShader.ParameterLocation("camIn"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.view_vector)));
+	glUniform3fvARB(this->torusShader.ParameterLocation("camRight"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.right_vector)));
+	glUniform3fvARB(this->torusShader.ParameterLocation("camUp"), 1, glm::value_ptr(static_cast<glm::vec4>(snapshot.up_vector)));
+
+	glUniform3fARB(this->torusShader.ParameterLocation("zValues"), fogStart, cam.near_clipping_plane(),
+		cam.far_clipping_plane());
+    glUniform3fARB(this->torusShader.ParameterLocation("fogCol"), fogCol.GetX(), fogCol.GetY(), fogCol.GetZ());
+    glUniform1f(glGetUniformLocation(this->torusShader, "probeRad"),
+        this->probeRadiusParam.Param<param::FloatParam>()->Value());
+    CHECK_FOR_OGL_ERROR();
+    //  glUniform1fARB( this->torusShader.ParameterLocation( "alpha"), this->transparency);
+
+	glUniformMatrix4fv(this->torusShader.ParameterLocation("MVP"), 1, false, glm::value_ptr(MVP));
+	glUniformMatrix4fv(this->torusShader.ParameterLocation("MVinv"), 1, false, glm::value_ptr(MVinv));
+	glUniformMatrix4fv(this->torusShader.ParameterLocation("MVPinv"), 1, false, glm::value_ptr(MVPinv));
+	glUniformMatrix4fv(this->torusShader.ParameterLocation("MVPtransp"), 1, false, glm::value_ptr(MVPtransp));
+
+
+    // set color to orange
+    glColor3f(1.0f, 0.75f, 0.0f);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomPosSSBObindingPoint, this->gl_atomPos);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, this->gl_atomColorTable);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, torusAxesSSBObindingPoint, this->gl_torusAxes);
+
+    glDrawArrays(GL_POINTS, 0, numTorusAxes);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, atomColorTableSSBObindingPoint, 0);
+    this->torusShader.Disable();
+
+#endif
+}
+
+
+/*
+ * update parameters
+ */
+void SESTrilaterationCUDARenderer::UpdateParameters(const MolecularDataCall* mol, const protein_calls::BindingSiteCall* bs) {
+    // rendering mode param
+    if (this->renderModeParam.IsDirty()) {
+        this->currentRenderMode =
+            static_cast<RenderMode>(int(this->renderModeParam.Param<param::EnumParam>()->Value()));
+    }
+    // get molecule lust
+    if (this->molIdxListParam.IsDirty()) {
+        vislib::StringA tmpStr(this->molIdxListParam.Param<param::StringParam>()->Value());
+        this->molIdxList = vislib::StringTokeniser<vislib::CharTraitsA>::Split(tmpStr, ';', true);
+        this->molIdxListParam.ResetDirty();
+    }
+
+    bool colorTableChanged = false;
+        // color table param
+        if (this->colorTableFileParam.IsDirty()) {
+        protein::Color::ReadColorTableFromFile(
+            this->colorTableFileParam.Param<param::StringParam>()->Value(), this->colorLookupTable);
+        this->colorTableFileParam.ResetDirty();
+        colorTableChanged = true;
+    }
+    // Recompute color table
+    if ((this->coloringModeParam0.IsDirty()) || (this->coloringModeParam1.IsDirty()) ||
+        (this->cmWeightParam.IsDirty()) || colorTableChanged ) {
+
+        this->currentColoringMode0 =
+            static_cast<protein::Color::ColoringMode>(int(this->coloringModeParam0.Param<param::EnumParam>()->Value()));
+
+        this->currentColoringMode1 =
+            static_cast<protein::Color::ColoringMode>(int(this->coloringModeParam1.Param<param::EnumParam>()->Value()));
+
+        // Mix two coloring modes
+        protein::Color::MakeColorTable(mol, this->currentColoringMode0, this->currentColoringMode1,
+            cmWeightParam.Param<param::FloatParam>()->Value(),        // weight for the first cm
+            1.0f - cmWeightParam.Param<param::FloatParam>()->Value(), // weight for the second cm
+            this->atomColorTableRGB, this->colorLookupTable, this->rainbowColors,
+            this->minGradColorParam.Param<param::StringParam>()->Value(),
+            this->midGradColorParam.Param<param::StringParam>()->Value(),
+            this->maxGradColorParam.Param<param::StringParam>()->Value(), true);
+
+        // copy to RGBA array
+        this->atomColorTable.SetCount(4 * mol->AtomCount());
+#pragma omp parallel for
+        for (int i = 0; i < mol->AtomCount(); ++i) {
+            this->atomColorTable[4 * i + 0] = this->atomColorTableRGB[3 * i + 0];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[0]) / 255.0f;
+            this->atomColorTable[4 * i + 1] = this->atomColorTableRGB[3 * i + 1];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[1]) / 255.0f;
+            this->atomColorTable[4 * i + 2] = this->atomColorTableRGB[3 * i + 2];
+            // static_cast<float>(mol->AtomTypes()[mol->AtomTypeIndices()[i]].Colour()[2]) / 255.0f;
+            this->atomColorTable[4 * i + 3] = 1.0f;
+        }
+
+        this->coloringModeParam0.ResetDirty();
+        this->coloringModeParam1.ResetDirty();
+        this->cmWeightParam.ResetDirty();
+        this->uploadColors = true;
+    }
+}

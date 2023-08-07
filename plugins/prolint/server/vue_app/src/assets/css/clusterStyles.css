@@ -1,0 +1,140 @@
+h1 {
+  font: 14pt Arial;
+  color: black;
+  font-weight: bold;
+}
+
+p {
+  font: 12pt Arial;
+  color: black;
+}
+
+.xlabel {
+  font: 10pt sans-serif;
+}
+
+.ylabel {
+  font: 10pt sans-serif;
+}
+
+.plotTitle {
+  font: 12pt sans-serif;
+}
+
+
+
+/* https://bl.ocks.org/d3noob/a22c42db65eb00d4e369 */
+.chartTooltip {
+  visibility: hidden;
+  position: absolute;
+  text-align: left;
+  width: auto;
+  height: auto;
+  padding: 5px;
+  font: 12px sans-serif;
+  background: lightsteelblue;
+  border-radius: 8px;
+}
+.v-data-table-header th {
+  vertical-align: middle;
+  horiz-align: center;
+}
+
+.tooltipTable {
+  background: rgb(255, 255, 255);
+  border-color: rgb(121, 121, 121);
+  border-width: 3px;
+  border-style: solid;
+  border-radius: 4px;
+}
+
+#scroll-wrapper-ligNames {
+  overflow-x: hidden;
+  overflow-y: scroll;
+  white-space: nowrap;
+  max-height: 40vh;
+  height: 40vh;
+  width: 250px;
+  max-width: 250px;
+  scrollbar-width: thin;
+}
+
+#clusterPlots{
+  max-height: 57%;
+  height: 57%;
+}
+
+#scroll-wrapper-ligNames::-webkit-scrollbar {
+  width: 5px;
+  overflow-y: scroll;
+}
+
+.scrollableStyle_clusterStatistics .v-data-table__wrapper {
+  height: calc(58vh - 150px) !important;
+  scrollbar-width: thin;
+  overflow-y: scroll;
+}
+
+.tableSVGcontainer {
+  width: 55px;
+  height: 55px;
+}
+
+.tableColorMapContainer {
+}
+
+#wrapper {
+  height: 42vh;
+  max-height: 42vh;
+  width: 100vh;
+  display: flex;
+  justify-content: left;
+}
+
+.Cluster_Overview_Controls{
+  height: 6vh;
+  max-height: 7vh;
+}
+
+#assigned,
+#legend {
+  display: inline;
+  float: left;
+}
+
+#clusterTable tbody tr:hover {
+  cursor: pointer;
+}
+
+#clusterTable.theme--light.v-data-table tbody tr.v-data-table__selected {
+  background-color: #ddedd3;
+}
+
+.highlightRow_modelPresentInCluster {
+  background-color: #91c9f7;
+  /*#90CAF9*/
+}
+
+.highlightRow_modelPresentInCluster_and_selectedFuncGroup {
+  background-color: #f9c69f;
+  /*#90CAF9*/
+}
+
+.highlightRow_selectedModelID.highlightRow_modelPresentInCluster_and_selectedFuncGroup {
+  background-color: #fb8428;
+  /*#90CAF9*/
+}
+
+.highlightRow_selectedModelID.highlightRow_modelPresentInCluster{
+  background-color: #0e8cf3;
+}
+.highlightRow_selectedModelID {
+  background-color: #ddedd3;
+}
+.rowColBorderStyle-Left {
+  border-left: 5px solid red;
+}
+
+#lgdTable tbody tr:hover {
+  cursor: pointer;
+}

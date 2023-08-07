@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<btf type="MegaMolGLSLShader" version="1.0" namespace="circleBillboardShader">
+    
+	 
+  <include file="common"/>
+  <include file="core_utils"/>
+
+  <snippet name="commondefines" type="string">
+    <!-- 
+#define OGL_DEPTH_SES
+#define CLIP
+#define DEPTH
+#define SMALL_SPRITE_LIGHTING
+
+//#define DEBUG
+
+#ifndef FLACH
+#define FLACH
+#endif
+-->
+  </snippet>
+
+  
+ <shader name="circleVertex">
+      <snippet type="version">140</snippet>
+      <snippet name="commondefines"/>
+      <snippet name="core_utils::tflookup"/>
+      <snippet name="core_utils::tfconvenience"/>
+      <snippet type="string">
+        <!--
+#extension GL_ARB_shader_storage_buffer_object : require
+#extension GL_EXT_gpu_shader4 : require
+
+uniform vec4 hoverColor;
+uniform int hoverSphereID;
+uniform bool hideOnHover;
+uniform vec4 selectionColor;
+uniform int selectedSphereID;
+uniform bool hideOnSelection;
+uniform vec4 baseColor;
+
+
+in vec4 vertex;
+
+layout(shared, binding = 1) buffer sphereValue_SSBO {
+		float sphereValue[];
+	};
+
+out vec4 inColor;
+out int circleID;
+
+void main(void) {
+    gl_Position = vertex;
+    circleID = gl_VertexID;
+
+    if(gl_VertexID == selectedSphereID){
+        inColor = selectionColor;
+    }else if(gl_VertexID == hoverSphereID){
+        inColor = hoverColor;
+    }else if((sphereValue[gl_VertexID] < tfRange.x)){
+        inColor = baseColor;
+    }else{
+        inColor = tflookup((sphereValue[gl_VertexID]));
+        //inColor = inColor;
+    }
+    if(gl_VertexID == hoverSphereID){
+       gl_Position = vec4(vec3(gl_Position),gl_Position[3]*4.5);
+        inColor = hoverColor;
+    }
+    
+    
+    // hide circles
+    if(selectedSphereID != -1 && selectedSphereID != gl_VertexID && hideOnSelection){
+        inColor = vec4(vec3(inColor),0.0);
+        gl_Position = vec4(0,0,0,0);
+    }
+     else if(hoverSphereID != -1 && hoverSphereID != gl_VertexID && hideOnHover){
+        inColor = vec4(vec3(inColor),0.0);
+        gl_Position = vec4(0,0,0,0);
+    }
+
+}
+-->
+      </snippet>
+    </shader>
+	
+	
+	
+
+ <shader name="circleGeom">
+      <snippet type="version">140</snippet>
+      <snippet type="string">
+        <!--
+#extension GL_ARB_gpu_shader5 : enable
+#extension GL_EXT_geometry_shader4 : enable
+
+//layout (points) in;
+//layout (triangle_strip, max_vertices = 4) out;
+
+uniform mat4 modelview;
+uniform mat4 proj;
+
+uniform vec4 camPosition;
+uniform vec3 camIn;
+uniform vec3 camUp;
+uniform vec3 camRight;
+
+in vec4 inColor[1];
+in int circleID[1];
+
+out vec4 color;
+out vec2 UV;
+flat out int circleID_out;
+
+mat4 modelviewproj = proj*modelview; // TODO Move this to the CPU?
+
+void main(void) {
+    
+    circleID_out = circleID[0];
+    color = inColor[0];
+
+    vec4 inPos = gl_PositionIn[0];
+    float rad = inPos.w;
+    inPos.w = 1.0;
+
+    vec4 v2 = modelviewproj * vec4( inPos.xyz - rad * (camRight+ camUp),1.0);
+    vec4 v1 = modelviewproj * vec4( inPos.xyz - rad * (camRight- camUp),1.0);
+    vec4 v4 = modelviewproj * vec4( inPos.xyz + rad * (camRight- camUp),1.0);
+    vec4 v3 = modelviewproj * vec4( inPos.xyz + rad * (camRight+ camUp),1.0);
+
+    // perspective devide
+    v1 /= v1.w;
+    v2 /= v2.w;
+    v3 /= v3.w;
+    v4 /= v4.w;
+
+    UV = vec2(0.0,0.0);
+    gl_Position = vec4(v1.xyz, inPos.w); EmitVertex();
+
+    UV = vec2(0.0,1.0);
+    gl_Position = vec4(v2.xyz, inPos.w); EmitVertex();
+
+    UV = vec2(1.0,0.0);
+    gl_Position = vec4(v3.xyz, inPos.w); EmitVertex();
+
+    UV = vec2(1.0,1.0);
+    gl_Position = vec4(v4.xyz, inPos.w); EmitVertex();
+    
+    EndPrimitive();
+
+}
+-->
+      </snippet>
+    </shader>
+
+
+
+
+
+<shader name="circleFragment">
+      <snippet type="version">140</snippet>
+      <snippet name="commondefines"/>
+      <snippet type="string">
+        <!--
+#extension GL_ARB_gpu_shader5 : enable
+#extension GL_EXT_geometry_shader4 : enable
+
+uniform sampler2D icon0;
+uniform sampler2D icon1;
+uniform sampler2D icon2;
+uniform sampler1D tfTexture;
+
+uniform vec3 camIn;
+uniform vec3 camUp;
+uniform vec3 camRight;
+
+in vec4 color;
+flat in int circleID_out;
+in vec2 UV;
+
+
+void main(void) {
+
+    vec2 uff = UV*2-1;
+    float dis = length(uff)-1.0; 
+
+    //gl_FragColor = vec4(dis,dis,dis,dis);
+    if(dis > 0.0){
+        discard;
+    }
+    
+    vec2 uvPos = vec2(UV.x, UV.y);
+    vec3 retv;
+    if(circleID_out == 0){
+        retv =  texture2D(icon0, uvPos).xyz;
+    }else if(circleID_out == 1){
+        retv =  texture2D(icon1, uvPos).xyz;
+    }else{
+        retv =  texture2D(icon2, uvPos).xyz;
+    }
+    
+     gl_FragColor = vec4(retv.xyz,1.0);
+     if(dis > -0.12){
+        gl_FragColor = vec4(color);
+    }
+
+}
+-->
+      </snippet>
+    </shader>
+
+
+
+
+</btf>

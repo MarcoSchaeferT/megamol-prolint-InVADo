@@ -1,0 +1,38 @@
+/* currently not in use: funcGroupTooltip*/
+#funcGroupTooltip {
+  visibility: hidden;
+  position: absolute;
+  text-align: left;
+  width: auto;
+  height: auto;
+  padding: 5px;
+  font: 12px Arial;
+  background: lightsteelblue;
+  border-radius: 8px;
+}
+
+
+
+#aboveFunctionalGroups{
+  height: 55%;
+   max-height: 55%;
+}
+
+#clusterTreeView {
+    overflow-y: scroll;
+    scrollbar-width: thin;
+  }
+
+
+#Functional_Groups{
+  max-height: 45%;
+  height: 45%;
+  display: flex;
+  flex-direction: column;
+}
+#LargeDiv{
+  max-height: 97vh;
+  height: 97vh;
+}
+
+

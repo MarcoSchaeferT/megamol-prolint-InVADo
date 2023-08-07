@@ -1,0 +1,43 @@
+body {
+  background-color: whitesmoke;
+}
+.container {
+  margin-left: 15em;
+  margin-top: 7em;
+}
+
+h1 {
+  font: 14pt Arial;
+  margin: 2px;
+  color: black;
+  font-weight: bold;
+}
+
+p {
+  font: 12pt Arial;
+  color: black;
+}
+
+.sidebar {
+  position: fixed;
+  background-image: linear-gradient(to bottom, royalblue, lightblue);
+  overflow-x: hidden;
+  padding-top: 8em;
+  height: 100%;
+  width: 13em;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+}
+
+.sidebar a {
+  padding: 0.375em 0.5em 0.375em 1em;
+  text-decoration: none;
+  font-size: 1.5em;
+  color: black;
+  display: block;
+}
+
+.sidebar a:hover {
+  color: lightsteelblue;
+}

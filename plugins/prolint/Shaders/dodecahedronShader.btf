@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<btf type="MegaMolGLSLShader" version="1.0" namespace="dodecahedronShader">
+    
+	 
+  <include file="common"/>
+  <include file="core_utils"/>
+
+  <snippet name="commondefines" type="string">
+    <!-- 
+#define OGL_DEPTH_SES
+#define CLIP
+#define DEPTH
+#define SMALL_SPRITE_LIGHTING
+
+//#define DEBUG
+
+#ifndef FLACH
+#define FLACH
+#endif
+-->
+  </snippet>
+
+  
+//******************************************************************
+//************************** LIGHTING ******************************
+//******************************************************************
+<namespace name="lighting">
+        <snippet name="simple" type="string">
+            <!--
+// TODO: Implementation is wrong! Does positional Lighting instead of directional lighting!
+
+// ray:      the eye to fragment ray vector
+// normal:   the normal of this fragment
+// lightPos: the position of the light source
+// color:    the base material color
+vec3 LocalLighting(const in vec3 ray, const in vec3 normal, const in vec3 lightPos, const in vec3 color) {
+    // TODO: rewrite!
+    vec3 lightDir = normalize(lightPos);
+
+    vec4 lightparams = vec4(0.55, 0.7, 0.1, 1.0);
+#define LIGHT_AMBIENT lightparams.x
+#define LIGHT_DIFFUSE lightparams.y
+#define LIGHT_SPECULAR lightparams.z
+#define LIGHT_EXPONENT lightparams.w
+    float nDOTl = dot(normal, lightDir);
+
+    vec3 r = normalize(2.0 * vec3(nDOTl) * normal - lightDir);
+    //return vec3(1.0,1.0,1.0);
+    return LIGHT_AMBIENT * color 
+        + LIGHT_DIFFUSE * color * max(nDOTl, 0.0) 
+        + LIGHT_SPECULAR * vec3(pow(max(dot(r, -ray), 0.0), LIGHT_EXPONENT));
+}
+-->
+        </snippet>
+    </namespace>
+
+
+ <shader name="dodecahedronVertex">
+      <snippet type="version">150</snippet>
+       <snippet name="commondefines"/>
+      <snippet name="core_utils::tflookup"/>
+      <snippet name="core_utils::tfconvenience"/>
+      <snippet type="string">
+        <!--
+#extension GL_ARB_shader_storage_buffer_object : require
+
+uniform vec4 hoverColor;
+uniform int hoverSphereID;
+uniform bool hideOnHover;
+uniform vec4 selectionColor;
+uniform int selectedSphereID;
+uniform bool hideOnSelection;
+uniform vec4 baseColor;
+
+uniform mat4 modVIEW;
+uniform mat4 proj;
+
+in vec4 vertex;
+in vec3 normal;
+
+
+mat4 modelviewInv = inverse(modVIEW);
+mat4 modelviewproj = proj * modVIEW; // TODO Move this to the CPU?
+
+layout(shared, binding = 1) buffer sphereValue_SSBO {
+		float sphereValue[];
+	};
+
+out vec4 inColor;
+out vec3 outNormal;
+
+void main(void) {
+    gl_Position  = modelviewproj * vertex.xyzw ;
+    outNormal = normal;
+    
+    int idd = gl_VertexID/108;
+     if(idd == selectedSphereID){
+        inColor = selectionColor;
+    }else if(idd == hoverSphereID){
+        inColor = hoverColor;
+    }else if((sphereValue[idd] < tfRange.x)){
+        inColor = baseColor;
+    }else{
+        inColor = tflookup((sphereValue[idd]));
+    }
+    
+    
+    // hide spheres
+    if(selectedSphereID != -1 && selectedSphereID == idd && hideOnSelection){
+        inColor = vec4(vec3(inColor),0.0);
+        gl_Position  = vec4(0,0,0,0);
+    }
+     else if(hoverSphereID != -1 && hoverSphereID != idd && hideOnHover){
+        inColor = vec4(vec3(inColor),0.0);
+        gl_Position  = vec4(0,0,0,0);
+    }
+    //inColor = color;
+}
+-->
+      </snippet>
+    </shader>
+	
+	
+
+
+<shader name="dodecahedronFragment">
+      <snippet type="version">150</snippet>
+      <snippet name="commondefines"/>
+      <snippet name="lighting::simple"/>
+      <snippet type="string">
+        <!--
+
+uniform vec4 viewAttr; // TODO: check fragment position if viewport starts not in (0, 0)
+uniform mat4 modVIEW;
+uniform mat4 proj;
+uniform vec4 lightPos;
+
+in vec3 outNormal;
+in vec4 inColor;
+
+out vec4 fragColor;
+
+mat4 modelviewproj = proj*modVIEW; // TODO Move this to the CPU?
+mat4 modelviewprojInv = inverse(modelviewproj);
+
+void main(void) {
+
+    vec4 coord;
+    vec3 ray;
+    vec3 lightDir =  normalize(vec3(lightPos.xyz));
+    vec3 camPos = lightPos.xyz;
+ 
+// transform fragment coordinates from window coordinates to view coordinates.
+    coord = gl_FragCoord 
+        * vec4(viewAttr.z, viewAttr.w, 2.0, 0.0) 
+        + vec4(-1.0, -1.0, -1.0, 1.0);
+    coord = modelviewprojInv * coord;
+  
+   // coord /= coord.w;
+  //  coord -= objPos; // ... and to glyph space
+    
+    // calc the viewing ray
+    ray = normalize(coord.xyz - camPos.xyz);
+    vec3 normalll = vec3(1.0,1.0,1.0); 
+    vec3 n = normalize(outNormal);
+
+   //gl_FragColor = vec4(LocalLighting(ray, normalll, lightPos.xyz, outColor.rgb), outColor.w);
+  // gl_FragColor = vec4(LocalLighting(ray, n, light.xyz, outColor.rgb), outColor.w);
+   // gl_FragColor = outColor;
+
+    float lightAmbient = 0.2f;
+    float lightDiffuse = 0.8f;
+    float lightSpecular = 0.2f;
+    float lightExponent = 10.0f;  
+   
+    float nDOTl = dot(n, lightDir);
+    
+    vec3 colorr = inColor.xyz;
+    //color = vec3(1.0,0.0,0.0);
+
+    
+   // vec3 r = normalize(2.0 * vec3(nDOTl) * n - lightDir);
+    
+    //return vec3(1.0,1.0,1.0);
+    vec3 ambientTerm = lightAmbient * colorr;
+    vec3 diffuseTerm = lightDiffuse * colorr * max(nDOTl, 0.0);
+   // vec3 specularTerm = lightSpecular * vec3(pow(max(dot(r, -ray), 0.0), lightExponent));
+
+    // gl_FragColor.rgb = ray.xyz; // DEBUG
+   //fragColor = vec4(color.r*nDOTl,color.g*nDOTl,color.b*nDOTl,1.0); // DEBUG
+   //gl_FragColor = vec4(normalize(abs(diffuseTerm)),1.0);
+
+   fragColor = vec4(ambientTerm+diffuseTerm,1.0);
+
+}
+-->
+      </snippet>
+    </shader>
+
+
+</btf>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<btf type="MegaMolGLSLShader" version="1.0" namespace="simpleAmbientShader">
+    
+
+
+
+ <shader name="simpleAmbientShader_vertex">
+      <snippet type="version">150</snippet>
+      <snippet type="string">
+        <!--
+
+
+uniform mat4 modVIEW;
+uniform mat4 proj;
+
+in vec4 vertex;
+
+
+mat4 modelviewInv = inverse(modVIEW);
+mat4 modelviewproj = proj * modVIEW; // TODO Move this to the CPU?
+
+
+
+void main(void) {
+    gl_Position  = modelviewproj * vertex ;
+}
+-->
+      </snippet>
+    </shader>
+	
+	
+
+
+<shader name="simpleAmbientShader_fragment">
+      <snippet type="version">150</snippet>
+      <snippet type="string">
+        <!--
+
+
+uniform vec4 baseColor;
+uniform float lightAmbient;
+
+out vec4 fragColor;
+
+
+void main(void) {
+
+   vec3 ambientTerm = lightAmbient * vec3(baseColor);
+   
+   fragColor = vec4(ambientTerm,baseColor.w);
+
+}
+-->
+      </snippet>
+    </shader>
+
+
+</btf>
