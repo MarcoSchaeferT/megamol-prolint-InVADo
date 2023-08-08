@@ -58,8 +58,8 @@ export function drawColormap(in_margin, svgWidth, values, state) {
     .call(
       d3
         .axisBottom(x)
-        .ticks(6)
         .tickSize(5)
+        .tickFormat((x) => `(${x.toFixed(1)})`)
         .tickFormat((d) => "-" + d)
     )
     .select(".domain");
@@ -142,7 +142,7 @@ export function drawColormapTooltip(in_margin, svgHeight, val) {
     .call(
       d3
         .axisLeft(x)
-        .ticks(6)
+        .tickFormat((x) => `(${x.toFixed(1)})`)
         .tickFormat((d) => "-" + d)
         .tickSize(5)
     )
