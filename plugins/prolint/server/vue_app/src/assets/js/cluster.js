@@ -4,6 +4,9 @@ import { rgb } from "d3";
 //import clusters from '@/components/clusters';
 import { store, clusterDataKeys as k } from "../../main.js";
 
+// fonzt size of stacked bar/ box plot labels
+var fontSize = "11.5pt";
+
 let onClickNoStake = function () {
   let clusterID = "All_withoutNoise";
   if (store.state.showNoise == true) {
@@ -416,7 +419,7 @@ function drawBarchart(div) {
   d3.select(div).selectAll("svg").remove();
 
   // Define width and height of the svg
-  let margin = { top: 10, right: 30, bottom: 40, left: 50 };
+  let margin = { top: 10, right: 30, bottom: 40, left: 60 };
   let box = document.querySelector("#wrapper").getBoundingClientRect();
   let svgWidth = box.width;
   let svgHeight = (box.height - (margin.top + margin.bottom)) * 0.65;
@@ -498,7 +501,8 @@ function drawBarchart(div) {
     .selectAll("text")
     //.style("text-anchor", "end")
     //.attr("dx", "-1.6em")
-    .attr("dy", "2.03em");
+    .attr("dy", "1.43em")
+    .style("font-size", fontSize);
   //.attr("transform", "rotate(-90)"); //-65
 
   // x-label
@@ -508,13 +512,17 @@ function drawBarchart(div) {
     .attr("text-anchor", "end")
     .attr("x", svgWidth)
     .attr("y", +svgHeight + 35)
+    .style("font-size", fontSize)
     .text("ClusterID");
 
   // y axis
   barScaleY = d3.scaleLinear().domain([0, maxVal]).nice().range([svgHeight, 0]);
   store.commit("setBarScaleY", barScaleY);
 
-  svg_stackedBar.append("g").call(d3.axisLeft(barScaleY));
+  svg_stackedBar
+    .append("g")
+    .call(d3.axisLeft(barScaleY))
+    .style("font-size", fontSize);
 
   // y-label
   svg_stackedBar
@@ -524,6 +532,7 @@ function drawBarchart(div) {
     .attr("transform", "rotate(-90)")
     .attr("y", -margin.left + 15)
     .attr("x", 0)
+    .style("font-size", fontSize)
     .text("Ligand-Poses");
 
   // Color range
@@ -642,7 +651,7 @@ function drawBarchart(div) {
       return barScaleX(d.data.id);
     })
     .attr("y", function (d) {
-      return barScaleY(d[1]);
+      return barScaleY(d[1]) - 1;
     })
     .attr("height", function (d) {
       return barScaleY(d[0]) - barScaleY(d[1]);
@@ -723,7 +732,7 @@ function drawBarchart(div) {
     .attr("x", 5)
     .attr("y", 12)
     .style("font-family", "Arial")
-    .style("font-size", "10pt")
+    .style("font-size", fontSize)
     .text("color mode: " + colorModeLabel());
 
   if (coloring != "id") {
@@ -792,7 +801,7 @@ function drawBarchart(div) {
       })
       .attr("y", 12)
       .style("font-family", "Arial")
-      .style("font-size", "10pt")
+      .style("font-size", fontSize)
       .text(function (d) {
         return d.text;
       });
@@ -820,12 +829,14 @@ function drawBarchart(div) {
 // adapted from https://www.d3-graph-gallery.com/graph/boxplot_several_groups.html
 function drawBoxplot() {
   let nrgDict = store.state.nrgDict;
-  let margin = { top: 10, right: 30, bottom: 40, left: 50 };
+  let margin = { top: 10, right: 30, bottom: 40, left: 60 };
   let box = document.querySelector("#wrapper").getBoundingClientRect();
   let svgWidth = box.width;
   let svgHeight = (box.height - (margin.top + margin.bottom)) * 0.35;
   let showNoise = store.state.showNoise;
   let scaleX = store.state.barScaleX;
+  let normalBoxCol = "lightblue";
+  let boxHighlightCol = "royalblue";
 
   // Append the svg object
   let svg = d3
@@ -896,7 +907,7 @@ function drawBoxplot() {
     .nice()
     .range([svgHeight, 0]);
 
-  svg.append("g").call(d3.axisLeft(scaleY));
+  svg.append("g").call(d3.axisLeft(scaleY)).style("font-size", fontSize);
 
   // y-label
   svg
@@ -906,6 +917,7 @@ function drawBoxplot() {
     .attr("transform", "rotate(-90)")
     .attr("y", -margin.left + 15)
     .attr("x", -svgHeight)
+    .style("font-size", fontSize)
     .text("Score / Energy");
 
   // Tooltip
@@ -918,6 +930,7 @@ function drawBoxplot() {
   let mouseOver = function () {
     d3.select(this)
       .style("cursor", "pointer")
+      .style("fill", boxHighlightCol)
       .style("opacity", 1)
       .style("stroke", "grey")
       .style("stroke-width", 2);
@@ -962,7 +975,8 @@ function drawBoxplot() {
     d3.select(this)
       .style("stroke", "black")
       .style("stroke-width", 1)
-      .style("opacity", 0.5);
+      .style("fill", normalBoxCol);
+    //.style("opacity", 0.5);
   };
 
   let bw = scaleX.bandwidth();
@@ -1006,8 +1020,8 @@ function drawBoxplot() {
     .attr("width", bw)
     .attr("stroke", "black")
     .style("stroke-width", 1)
-    .style("fill", "royalblue")
-    .style("opacity", 0.5)
+    .style("fill", normalBoxCol)
+    //.style("opacity", 0.5)
     .on("mousemove", mouseMove)
     .on("mouseover", mouseOver)
     .on("mouseout", mouseOut)
@@ -1112,10 +1126,10 @@ function drawBoxplot() {
     .append("text")
     .attr("y", 12)
     .attr("x", function (d) {
-      return d === "Median" ? 18 : 83;
+      return d === "Median" ? 18 : 86;
     })
     .style("font-family", "Arial")
-    .style("font-size", "10pt")
+    .style("font-size", fontSize)
     .text(function (d) {
       return d;
     });
@@ -1124,7 +1138,7 @@ function drawBoxplot() {
     .append("rect")
     .attr("y", 2)
     .attr("x", function (d) {
-      return d === "Median" ? 5 : 70;
+      return d === "Median" ? 5 : 74;
     })
     .attr("width", 10)
     .attr("height", 10)

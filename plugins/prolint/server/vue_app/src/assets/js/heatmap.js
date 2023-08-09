@@ -475,10 +475,10 @@ export function drawHeatmap(dataset, div, axisDiv) {
             "<tr><td> <strong>Cluster:</strong></td><td> " +
             d["clusterID"] +
             "</td></tr>" +
-            "<tr><td><strong>Ligand.:</strong></td><td> " +
+            "<tr><td><strong>Ligand:</strong></td><td> " +
             d["ligandID"] +
             "</td></tr>" +
-            "<tr><td><strong>Model.:</strong></td><td> " +
+            "<tr><td><strong>Model:</strong></td><td> " +
             (parseInt(d["modelID"]) + 1) +
             "</td></tr>" +
             "</table>"
