@@ -1,6 +1,6 @@
 # InVADo: Interactive Visual Analysis of Molecular Docking Data
 
-![](InVADo.png)
+<img src="InVADo.png" width="128" height="128" />
 
 # based on MegaMol
 
@@ -8,7 +8,7 @@
 
 ### Install steps and additional data: https://github.com/MarcoSchaeferT/InVADo_setup
 
-### It contains the specific requirements and instructions to build and run InVADo.
+### The repository 'InVADo_setup' contains the specific requirements and instructions how to build and run InVADo.
 
 #### ACKNOWLEDGMENTS
 
