@@ -831,7 +831,7 @@ bool MultiPDBQTLoader::loadPDBQTFiles(const vislib::TString& filename) {
                                  * + RMSD lb/ub (lb = lower bound // ub = upper bound)
                                  * + Atom X, Y, Z, Charge Q
                                  * ---> of the model*/
-                                auto bindingEnergy = PDBQTLine.Substring(24, 6);
+                                auto bindingEnergy = PDBQTLine.Substring(23, 6);
                                 auto RMSD_lb = PDBQTLine.Substring(34, 6);
                                 auto RMSD_ub = PDBQTLine.Substring(45, 6);
 
@@ -847,7 +847,12 @@ bool MultiPDBQTLoader::loadPDBQTFiles(const vislib::TString& filename) {
 
                                 } else {
                                     // use energy value from last model as compensation
-                                    this->bindingEnergy.Add(this->bindingEnergy[this->bindingEnergy.Count() - 1]);
+                                    if (this->bindingEnergy.Count() > 0) {
+                                        this->bindingEnergy.Add(this->bindingEnergy[this->bindingEnergy.Count() - 1]);
+                                    } else {
+                                        this->bindingEnergy.Add(-0.0);
+                                    }
+                                    
                                 }
 
 

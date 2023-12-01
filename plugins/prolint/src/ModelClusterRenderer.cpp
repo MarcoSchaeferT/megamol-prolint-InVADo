@@ -3421,7 +3421,7 @@ bool ModelClusterRenderer::Render(megamol::core::Call& call) {
     }     // end else (cluster sphere selected)
 
 
-    if (starCircles.Count() > 1) {
+    if (this->s.curClusterID != -1) {
     circleTextureRenderer(
         this->starSubSpheres_onSelect, this->tf.tf_functGroups, this->renVarsSMS, viewportStuff);
     }
