@@ -2420,7 +2420,7 @@ bool ModelClusterRenderer::Render(megamol::core::Call& call) {
         float correction = this->scaleWorld / 0.0117368829;
         float postScale = 1.0f;
         float postsubTextScale = 0.47f * correction;
-        float postSVGtextScale = 0.46f * correction;
+        float postSVGtextScale = 0.39f * correction;
         if (this->s.selectedIDx < noiseModelCentroidsIDXs.Count()) {
             lmc->SetCurrentLigandAndModel_byGlobalMdlID(
                 this->clusterData.assign_modelID_sphereID->PeekElements()[this->s.selectedIDx].GetY());
