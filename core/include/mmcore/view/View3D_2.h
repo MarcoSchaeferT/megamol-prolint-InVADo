@@ -12,6 +12,7 @@
 #endif /* (defined(_MSC_VER) && (_MSC_VER > 1000)) */
 
 #include <array>
+#include <chrono>
 #include <map>
 #include <memory>
 #include "mmcore/BoundingBoxes_2.h"

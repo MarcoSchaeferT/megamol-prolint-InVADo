@@ -12,7 +12,9 @@
 
 #### ACKNOWLEDGMENTS
 
-InVADo was partially funded by German Research Foundation (DFG), project No. 437702916. It was also supported by the Czech Ministry of Education (grants ESFRI RECETOX RI LM2018121, ESFRI ELIXIR CZ LM2018131, NPO Onco LX22NPO5102, e-INFRA LM2018140). Special thanks go to the experts from Loschmidt Laboratories, Masaryk University, Brno, for their participation in the evaluation and thorough and valuable feedback. We also thank Frank Böckler and his team from the Molecular Design and Pharmaceutical Biophysics group, University of Tübingen for providing task descriptions and feedback on the initial design of InVADo.
+This work was partially funded by the German Research Foundation (DFG) as part of the Project No. 437702916 "Illustrative Visualization of Uncertainty in Dynamic Molecular Structures". It was also supported by the Czech Ministry of Education (grants ESFRI RECETOX RI LM2018121, ESFRI ELIXIR CZ LM2018131, e-INFRA LM2018140) and by the National Institute for Cancer Research (Programme EXCELES, ID Project No. LX22NPO5102) - Funded by the European Union – Next Generation EU.
+
+Special thanks go to the experts from Loschmidt Laboratories, Masaryk University, Brno, for their participation in the evaluation and thorough and valuable feedback. We also thank Frank Böckler and his team from the Molecular Design and Pharmaceutical Biophysics group, University of Tübingen for providing task descriptions and feedback on the initial design of InVADo.
 
 ---
 

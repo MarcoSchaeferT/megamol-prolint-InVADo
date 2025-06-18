@@ -2159,6 +2159,8 @@ bool ModelClusterRenderer::Render(megamol::core::Call& call) {
 
     this->renVarsCNS.selectedSphereID = this->s.selectedIDx;
     this->renVarsCNS.hideOnSelection = true;
+    this->renVarsCNS.baseColor.Set(1.0f, 0.647f, 0.0f, 1.0f); // RGB(255, 165, 0)
+
     this->dodecahedronRenderer(this->combined_noiseModelCentroids_clusterCentroids, &this->clusterDodeca_verts,
         &this->clusterDodeca_normals, this->tf.tf_clusterSpheres, this->renVarsCNS, viewportStuff);
 
@@ -3208,9 +3210,9 @@ bool ModelClusterRenderer::Render(megamol::core::Call& call) {
                         starSphereColors[i * 3 + 2] = 1.f;
                     }
                     // first sub-sphere
-                    starSubSphereColors[i * 3 + 0] = 0.85f;
-                    starSubSphereColors[i * 3 + 1] = 0.85f;
-                    starSubSphereColors[i * 3 + 2] = 0.85f;
+                    starSubSphereColors[i * 3 + 0] = 1.00f;
+                    starSubSphereColors[i * 3 + 1] = 1.00f;
+                    starSubSphereColors[i * 3 + 2] = 1.00f;
                 }
                 // set color of exit button/circle
                 starSphereColors[(sphereCnt - 1) * 3 + 0] = this->starMenu.fontColor.x;
