@@ -4,6 +4,11 @@
 
 # based on MegaMol
 
+```
+Switch to branch `VS2026_and_CUDA13.1` for a version that
+works with Visual Studio 2026, CUDA 13.1, and CMake 4.2.
+```
+
 ### This repository includes MegaMol with InVADo contained in the prolint plugin.
 
 ### Install steps and additional data: https://github.com/MarcoSchaeferT/InVADo_setup
