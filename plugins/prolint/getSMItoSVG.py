@@ -131,7 +131,7 @@ def downloadSMIFiles(i, listOfLigNames):
     ligName = listOfLigNames[i]
 
     # if ligName contains a ZINCID
-    if (str(ligName).startswith("ZINC")):
+    if (str(ligName).startswith("falseZINC")):
         SMIpath = dataFolder / (ligName+".smi")
         SVGtargetPath = dataFolder / (ligName + ".svg")
         getSMI = "http://zinc15.docking.org/substances/"+str(ligName).split("-")[0]+".smi"

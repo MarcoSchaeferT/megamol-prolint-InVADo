@@ -26,20 +26,23 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup)
 else()
 	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && git clone https://github.com/MarcoSchaeferT/InVADo_setup.git)
 	
-	execute_process(COMMAND CMD /c curl -L https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.4/nvidiaProfileInspector.zip  --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings\\Nprofile.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings && tar -xf Nprofile.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\graphicSettings && del Nprofile.zip)
+    message(STATUS "Downloading nvidiaProfileInspector...")
+    file(DOWNLOAD https://github.com/Orbmu2k/nvidiaProfileInspector/releases/download/2.4.0.4/nvidiaProfileInspector.zip ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/graphicSettings/Nprofile.zip)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E tar x Nprofile.zip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/graphicSettings)
+    file(REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/graphicSettings/Nprofile.zip)
 	
-	execute_process(COMMAND CMD /c curl -L https://homepage.univie.ac.at/norbert.haider/download/chemistry/checkmol/bin/checkmol-latest-win32.zip  --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\checkmol.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup && tar -xf checkmol.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup && del checkmol.zip)
+    message(STATUS "Downloading checkmol...")
+    file(DOWNLOAD https://homepage.univie.ac.at/norbert.haider/download/chemistry/checkmol/bin/checkmol-latest-win32.zip ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/checkmol.zip)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E tar x checkmol.zip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup)
+    file(REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/checkmol.zip)
 	
-	execute_process(COMMAND CMD /c curl -L https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-win64.zip --output ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server\\geckodriver.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server && tar -xf geckodriver.zip)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR}\\InVADo_setup\\server && del geckodriver.zip)
+    message(STATUS "Downloading geckodriver...")
+    file(DOWNLOAD https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-win64.zip ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/server/geckodriver.zip)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E tar x geckodriver.zip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/server)
+    file(REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/server/geckodriver.zip)
 	
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && xcopy InVADo_setup\\checkmol.exe  /H /C /I /Y)
-	execute_process(COMMAND CMD /c cd ${CMAKE_CURRENT_SOURCE_DIR} && xcopy InVADo_setup\\server server /E /H /C /I /Y)
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/checkmol.exe DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/InVADo_setup/server DESTINATION ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
 
@@ -73,9 +76,9 @@ if(BUILD_PROLINT_PLUGIN)
     set(DEP_LIST "${DEP_LIST};BUILD_${EXPORT_NAME}_PLUGIN BUILD_PROTEIN_CALLS_PLUGIN BUILD_PROTEIN_PLUGIN BUILD_GEOMETRY_CALLS_PLUGIN BUILD_CORE" CACHE INTERNAL "")
 
     # NVCC options
-    set(CMAKE_CUDA_STANDARD 11)
+    set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS} -O3")
-    set(CMAKE_CUDA_ARCHITECTURES "50")
+    set(CMAKE_CUDA_ARCHITECTURES "75")
 
     get_filename_component(CUDA_COMPILER_DIRECTORY "${CMAKE_CUDA_COMPILER}" DIRECTORY)
 

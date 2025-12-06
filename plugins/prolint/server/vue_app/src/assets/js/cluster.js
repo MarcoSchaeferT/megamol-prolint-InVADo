@@ -435,8 +435,7 @@ function drawBarchart(div) {
     .attr("preserveAspectRatio", "xMinYMin meet")
     .attr(
       "viewBox",
-      `0 0 ${svgWidth + margin.left + margin.right} ${
-        svgHeight + margin.top + margin.bottom
+      `0 0 ${svgWidth + margin.left + margin.right} ${svgHeight + margin.top + margin.bottom
       }`
     )
     .classed("resizeableSVG", true)
@@ -597,21 +596,21 @@ function drawBarchart(div) {
       .style("visibility", "visible")
       .html(
         "<strong>Ligand " +
-          id +
-          ": </strong>#" +
-          value +
-          "<br>" +
-          lgdData[id]["name"] +
-          "<br><strong>Poses:</strong> " +
-          modelIDs +
-          "<br><strong>Energies:</strong> " +
-          lgdData[id]["clusters"][d.data["id"]]["nrgs"] +
-          "<br><strong>Molecular Weight:</strong> " +
-          lgdData[id]["mwt"].toFixed(3) +
-          "<br><strong>logP:</strong> " +
-          lgdData[id]["lipo"].toFixed(3) +
-          "<br><strong>Fraction sp<sup>3</sup>:</strong> " +
-          lgdData[id]["sp3"].toFixed(3)
+        id +
+        ": </strong>#" +
+        value +
+        "<br>" +
+        lgdData[id]["name"] +
+        "<br><strong>Poses:</strong> " +
+        modelIDs +
+        "<br><strong>Energies:</strong> " +
+        lgdData[id]["clusters"][d.data["id"]]["nrgs"] +
+        "<br><strong>Molecular Weight:</strong> " +
+        lgdData[id]["mwt"].toFixed(3) +
+        "<br><strong>logP:</strong> " +
+        lgdData[id]["lipo"].toFixed(3) +
+        "<br><strong>Fraction sp<sup>3</sup>:</strong> " +
+        lgdData[id]["sp3"].toFixed(3)
       )
       .style("left", event.layerX + 10 + "px")
       .style("top", event.layerY - 50 + "px");
@@ -743,8 +742,8 @@ function drawBarchart(div) {
       coloring == "mwt"
         ? d3.extent(store.state.clusterData_prepared.mwt)
         : coloring == "lipo"
-        ? d3.extent(store.state.clusterData_prepared.lipo)
-        : d3.extent(store.state.clusterData_prepared.sp3);
+          ? d3.extent(store.state.clusterData_prepared.lipo)
+          : d3.extent(store.state.clusterData_prepared.sp3);
     let toFixedNumber = 1;
     if (coloring == "mwt") {
       toFixedNumber = 0;
@@ -846,8 +845,7 @@ function drawBoxplot() {
     .attr("preserveAspectRatio", "xMinYMin meet")
     .attr(
       "viewBox",
-      `0 0 ${svgWidth + margin.left + margin.right} ${
-        svgHeight + margin.top + margin.bottom
+      `0 0 ${svgWidth + margin.left + margin.right} ${svgHeight + margin.top + margin.bottom
       }`
     )
     .classed("resizeableSVG2", true)
@@ -949,25 +947,26 @@ function drawBoxplot() {
       .style("visibility", "visible")
       .html(
         "<strong> Mean: </strong>" +
-          mean +
-          "<br>" +
-          "<strong> Median: </strong>" +
-          median +
-          "<br>" +
-          "<strong> Min: </strong>" +
-          minimum +
-          "<br>" +
-          "<strong> Max: </strong>" +
-          maximum +
-          "<br>" +
-          "<strong> Q1: </strong>" +
-          q1 +
-          "<br>" +
-          "<strong> Q3: </strong>" +
-          q3
+        mean +
+        "<br>" +
+        "<strong> Median: </strong>" +
+        median +
+        "<br>" +
+        "<strong> Min: </strong>" +
+        minimum +
+        "<br>" +
+        "<strong> Max: </strong>" +
+        maximum +
+        "<br>" +
+        "<strong> Q1: </strong>" +
+        q1 +
+        "<br>" +
+        "<strong> Q3: </strong>" +
+        q3
       )
-      .style("left", event.layerX + 10 + "px")
-      .style("top", event.layerY - 100 + "px");
+      .style("position", "absolute")
+      .style("left", event.layerX + 50 + "px")
+      .style("top", event.layerY + 170 + "px");
   };
 
   let mouseOut = function () {
@@ -1390,11 +1389,11 @@ export function updateLgdTableData() {
               //filterZINC.push(...this.funcGroupData_inverted[element.fgsTypeID]);
               let fgsCount =
                 store.state.clusterFuncData[store.state.clusterID][
-                  element.fgsTypeID
+                element.fgsTypeID
                 ]["funcGroupCnt"];
               let iter =
                 store.state.clusterFuncData[store.state.clusterID][
-                  element.fgsTypeID
+                element.fgsTypeID
                 ]["lig_and_mdl_IDs"];
               for (let i = 0; i < fgsCount; i++) {
                 let ligandID = iter[i * 2 + 0];
@@ -1443,13 +1442,13 @@ export function updateLgdTableData() {
         presModel_id: presentModels[i] == null ? -1 : presentModels[i],
         hbond: fingerPrint,
         /*
-				halogenBonds: (halogenBonds[lgdId][modelIDs[i]] === 1 ? true : false),
-				hydrophobicInteractions: (hydrophobicInteractions[lgdId][modelIDs[i]] === 1 ? true : false),
-				metalComplexes: (metalComplexes[lgdId][modelIDs[i]] === 1 ? true : false),
-				piCationInteractions: (piCationInteractions[lgdId][modelIDs[i]] === 1 ? true : false),
-				piStacks: (piStacks[lgdId][modelIDs[i]] === 1 ? true : false),
-				saltBridges: (saltBridges[lgdId][modelIDs[i]] === 1 ? true : false),
-				*/
+        halogenBonds: (halogenBonds[lgdId][modelIDs[i]] === 1 ? true : false),
+        hydrophobicInteractions: (hydrophobicInteractions[lgdId][modelIDs[i]] === 1 ? true : false),
+        metalComplexes: (metalComplexes[lgdId][modelIDs[i]] === 1 ? true : false),
+        piCationInteractions: (piCationInteractions[lgdId][modelIDs[i]] === 1 ? true : false),
+        piStacks: (piStacks[lgdId][modelIDs[i]] === 1 ? true : false),
+        saltBridges: (saltBridges[lgdId][modelIDs[i]] === 1 ? true : false),
+        */
 
         //hbond: (hbonds[lgdId][modelIDs[i]] === 1 ? "✅" : "❌"),
       });

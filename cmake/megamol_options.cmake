@@ -41,7 +41,21 @@ mark_as_advanced(MEGAMOL_INSTALL_DEPENDENCIES)
 # CUDA
 option(ENABLE_CUDA "Enable CUDA, which is needed for certain plugins" OFF)
 if(ENABLE_CUDA)
+  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  # -allow-unsupported-compiler is needed for the compiler check to pass
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
   enable_language(CUDA)
+  
+  # CUDA 13.1 moved Thrust headers to cccl directory
+  get_filename_component(CUDA_BIN_DIR "${CMAKE_CUDA_COMPILER}" DIRECTORY)
+  set(CUDA_CCCL_DIR "${CUDA_BIN_DIR}/../include/cccl")
+  if(EXISTS "${CUDA_CCCL_DIR}")
+    include_directories("${CUDA_CCCL_DIR}")
+    message(STATUS "Added CCCL include directory: ${CUDA_CCCL_DIR}")
+  else()
+     message(WARNING "CCCL directory not found at ${CUDA_CCCL_DIR}, Thrust headers might be missing.")
+  endif()
 endif()
 
 # GLFW

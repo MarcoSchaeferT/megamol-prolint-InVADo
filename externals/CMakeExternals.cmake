@@ -146,6 +146,7 @@ function(require_external NAME)
       GIT_TAG "v2.4.0"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${ADIOS2_LIB}"
       CMAKE_ARGS 
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS=OFF
         -DBUILD_TESTING=OFF
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -202,7 +203,9 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${BHTSNE_LIB}"
       PATCH_COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/externals/bhtsne/CMakeLists.txt"
-        "<SOURCE_DIR>/CMakeLists.txt")
+        "<SOURCE_DIR>/CMakeLists.txt"
+      CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5)
 
     add_external_library(bhtsne
       LIBRARY ${BHTSNE_LIB})
@@ -226,6 +229,7 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${FMT_LIB}"
       DEBUG_SUFFIX "d"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DFMT_DOC=OFF
         -DFMT_TEST=OFF
         -DCMAKE_C_FLAGS=-fPIC
@@ -288,6 +292,7 @@ function(require_external NAME)
       GIT_TAG "3.3.2"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${GLFW_LIB}" "<INSTALL_DIR>/${GLFW_LIB2}" "<INSTALL_DIR>/${GLFW_LIB3}" "<INSTALL_DIR>/${GLFW_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS=ON
         -DGLFW_BUILD_EXAMPLES=OFF
         -DGLFW_BUILD_TESTS=OFF
@@ -323,6 +328,7 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${ICET_CORE_LIB}" "<INSTALL_DIR>/${ICET_GL_LIB}" "<INSTALL_DIR>/${ICET_MPI_LIB}"
                        "<INSTALL_DIR>/${ICET_CORE_IMPORT_LIB}" "<INSTALL_DIR>/${ICET_GL_IMPORT_LIB}" "<INSTALL_DIR>/${ICET_MPI_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS=ON
         -DICET_BUILD_TESTING=OFF
         -DMPI_GUESS_LIBRARY_NAME=${MPI_GUESS_LIBRARY_NAME})
@@ -357,7 +363,9 @@ function(require_external NAME)
         BUILD_BYPRODUCTS "<INSTALL_DIR>/${IMGUI_LIB}"
         PATCH_COMMAND ${CMAKE_COMMAND} -E copy
           "${CMAKE_SOURCE_DIR}/externals/imgui/CMakeLists.txt"
-          "<SOURCE_DIR>/CMakeLists.txt")
+          "<SOURCE_DIR>/CMakeLists.txt"
+      CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5)
 
       add_external_library(imgui
         LIBRARY ${IMGUI_LIB})
@@ -402,6 +410,7 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${IMGUIZMOQUAT_LIB}"
       DEPENDS imgui
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DIMGUI_LIBRARY:PATH=${INSTALL_DIR}/${IMGUI_LIB}
         -DIMGUI_INCLUDE_DIR:PATH=${INSTALL_DIR}/include
         -DCMAKE_C_FLAGS=-fPIC
@@ -447,6 +456,7 @@ function(require_external NAME)
       DEBUG_SUFFIX d
       DEPENDS zlib
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DPNG_BUILD_ZLIB=ON
         -DPNG_SHARED=OFF
         -DPNG_TESTS=OFF
@@ -496,6 +506,7 @@ function(require_external NAME)
       GIT_TAG 56ace6d03f521b9abb5a50176ec7763c1b77afa9
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${ZMQ_LIB}" "<INSTALL_DIR>/${ZMQ_LIB2}" "<INSTALL_DIR>/${ZMQ_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DZMQ_BUILD_TESTS=OFF
         -DENABLE_PRECOMPILED=OFF)
 
@@ -528,6 +539,7 @@ function(require_external NAME)
         "${CMAKE_SOURCE_DIR}/externals/quickhull/CMakeLists.txt"
         "<SOURCE_DIR>/CMakeLists.txt"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCMAKE_C_FLAGS=-fPIC
         -DCMAKE_CXX_FLAGS=-fPIC)
 
@@ -554,6 +566,7 @@ function(require_external NAME)
       GIT_TAG "1.1.7"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${SNAPPY_LIB}" "<INSTALL_DIR>/${SNAPPY_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS=ON
         -DSNAPPY_BUILD_TESTS=OFF
         -DCMAKE_BUILD_TYPE=Release)
@@ -586,6 +599,7 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${SPDLOG_LIB}"
       DEBUG_SUFFIX "d"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DSPDLOG_BUILD_EXAMPLE=OFF
         -DSPDLOG_BUILD_TESTS=OFF
         -DSPDLOG_FMT_EXTERNAL=ON
@@ -618,6 +632,7 @@ function(require_external NAME)
       GIT_TAG "v2.0.0-rc1"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${TINYOBJLOADER_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCMAKE_C_FLAGS=-fPIC
         -DCMAKE_CXX_FLAGS=-fPIC)
 
@@ -642,6 +657,7 @@ function(require_external NAME)
       GIT_TAG "2.1"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${TNY_LIB}" "<INSTALL_DIR>/${TNY_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DSHARED_LIB=ON)
 
     add_external_library(tinyply
@@ -672,6 +688,7 @@ function(require_external NAME)
         "<INSTALL_DIR>/${TRACKING_NATNET_LIB}"
         "<INSTALL_DIR>/${TRACKING_NATNET_IMPORT_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCREATE_TRACKING_TEST_PROGRAM=OFF)
 
     add_external_library(tracking
@@ -704,6 +721,7 @@ function(require_external NAME)
       GIT_TAG "0.5.2"
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${ZFP_LIB}"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS=ON
         -DBUILD_UTILITIES=OFF
         -DBUILD_TESTING=OFF
@@ -733,6 +751,7 @@ function(require_external NAME)
       BUILD_BYPRODUCTS "<INSTALL_DIR>/${ZLIB_LIB}"
       DEBUG_SUFFIX d
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON)
 
     add_external_library(zlib
@@ -782,6 +801,7 @@ function(require_external NAME)
       GIT_REPOSITORY https://gitlab.kitware.com/vtk/vtk-m.git
       GIT_TAG "v1.4.0"
       CMAKE_ARGS
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DBUILD_SHARED_LIBS:BOOL=OFF
         -DVTKm_ENABLE_TESTING:BOOL=OFF
         -DVTKm_ENABLE_CUDA:BOOL=${vtkm_ENABLE_CUDA}

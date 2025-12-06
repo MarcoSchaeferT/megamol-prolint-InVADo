@@ -138,7 +138,7 @@ def downloadJSONfiles(i, ZINCListNames):
     ligName = ZINCListNames[i]
     if verbose:
         print("LigName: " + str(ligName))
-    if str(ligName).startswith("ZINC"):
+    if str(ligName).startswith("falseZINC"):
         JSONpath: Path = dataFolder / (ligName + ".json")
         ChemPropTargetPath = dataFolder / (ligName + ".checkmol")
         getJSON: str = (
